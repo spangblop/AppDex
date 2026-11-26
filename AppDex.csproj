@@ -1,0 +1,79 @@
+<Project ToolsVersion="Current" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">AnyCPU</Platform>
+    <OutputType>WinExe</OutputType>
+    <RootNamespace>GameShelf</RootNamespace>
+    <AssemblyName>AppDex</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <Optimize Condition="'$(Configuration)' == 'Release' Or '$(Configuration)' == 'Preview'">true</Optimize>
+    <ApplicationIcon>Assets\AppDex.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Preview'">
+    <DefineConstants>$(DefineConstants);APPDEX_PREVIEW</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="UIAutomationTypes" />
+    <Reference Include="UIAutomationProvider" />
+    <Compile Include="LibraryWindow.xaml.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="LibraryWindow.Organization.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="LibraryWindow.Drag.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="LibraryWindow.Panels.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="LibraryPreferences.cs" />
+    <Compile Include="AppBuild.cs" />
+    <Compile Include="PreferenceWriter.cs" />
+    <Compile Include="LibraryScrollViewer.cs" />
+    <Compile Include="AppAppearance.cs" />
+    <Compile Include="AppearanceOptions.cs" />
+    <Compile Include="PresetShareCode.cs" />
+    <Compile Include="AppearanceEditor.cs" />
+    <Compile Include="AppearanceHighlight.cs" />
+    <Compile Include="LibraryWindow.Appearance.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="LibraryWindow.Sync.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="ColorWheel.cs" />
+    <Compile Include="TileHover.cs" />
+    <Compile Include="TileLaunchCue.cs" />
+    <Compile Include="LaunchSpinner.cs" />
+    <Compile Include="UiSounds.cs" />
+    <Compile Include="HoverAudio.cs" />
+    <Compile Include="AppDiscovery.cs" />
+    <Compile Include="Game.cs" />
+    <Compile Include="GameCatalog.cs" />
+    <Compile Include="SteamLibrary.cs" />
+    <Compile Include="SteamLocation.cs" />
+    <Compile Include="ImportPane.xaml.cs"><DependentUpon>ImportPane.xaml</DependentUpon></Compile>
+    <Compile Include="AppEditorPane.xaml.cs"><DependentUpon>AppEditorPane.xaml</DependentUpon></Compile>
+    <Compile Include="Activity.cs" />
+    <Compile Include="GameProcesses.cs" />
+    <Compile Include="DesktopHost.cs" />
+    <Compile Include="StartupRegistration.cs" />
+    <Compile Include="SettingsPane.xaml.cs"><DependentUpon>SettingsPane.xaml</DependentUpon></Compile>
+    <Page Include="LibraryWindow.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="AppEditorPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="Controls.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="SettingsPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="ImportPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Resource Include="Assets\*.jpg" />
+    <Resource Include="Assets\AppDex.ico" />
+    <Resource Include="Assets\AppDexMark.png" />
+    <EmbeddedResource Include="Assets\Sounds\*.wav">
+      <LogicalName>AppDex.Sounds.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

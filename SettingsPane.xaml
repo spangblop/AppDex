@@ -1,0 +1,199 @@
+<UserControl x:Class="GameShelf.SettingsPane" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Foreground="{DynamicResource AppText}" FontFamily="{DynamicResource AppBodyFont}" FontSize="{DynamicResource AppBodySize}" UseLayoutRounding="True">
+  <UserControl.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls.xaml"/></ResourceDictionary.MergedDictionaries>
+      <Style x:Key="SettingsCard" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource AppBackground}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource AppEdge}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource AppControlCorner}"/>
+        <Setter Property="Padding" Value="11,9"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
+      </Style>
+      <Style x:Key="SettingsHeading" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource AppMuted}"/>
+        <Setter Property="Margin" Value="5,0,0,4"/>
+      </Style>
+      <Style x:Key="PlaytimeWarning" TargetType="TextBlock">
+        <Setter Property="Text" Value="Playtime tracking pauses until you reopen AppDex."/>
+        <Setter Property="Foreground" Value="{DynamicResource AppDanger}"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Margin" Value="4,7,4,2"/>
+        <Setter Property="TextWrapping" Value="Wrap"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
+      </Style>
+      <Style x:Key="SettingsTab" TargetType="TabItem">
+        <Setter Property="Foreground" Value="{DynamicResource AppMuted}"/>
+        <Setter Property="FontSize" Value="{DynamicResource AppBodySize}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TabItem">
+          <Border x:Name="Tab" Background="Transparent" BorderBrush="Transparent" BorderThickness="1"
+              CornerRadius="6" Padding="5,7">
+            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Tab" Property="Background" Value="{DynamicResource AppControl}"/>
+              <Setter TargetName="Tab" Property="BorderBrush" Value="{DynamicResource AppEdge}"/>
+              <Setter Property="Foreground" Value="{DynamicResource AppText}"/>
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter Property="Foreground" Value="{DynamicResource AppText}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Tab" Property="BorderBrush" Value="{DynamicResource AppAccentText}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="SettingSwitch" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{DynamicResource AppText}"/>
+        <Setter Property="FontSize" Value="{DynamicResource AppBodySize}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox">
+          <Border x:Name="Row" Background="Transparent" BorderThickness="1" BorderBrush="Transparent"
+              CornerRadius="6" Padding="4,5" MinHeight="36">
+            <Grid>
+              <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBlock Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" TextWrapping="Wrap"
+                  VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Border Grid.Column="1" x:Name="Track" Width="36" Height="20" CornerRadius="10" VerticalAlignment="Center"
+                  Background="{DynamicResource AppControl}" BorderBrush="{DynamicResource AppEdge}" BorderThickness="1">
+                <Ellipse x:Name="Thumb" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="3,0"
+                    Fill="{DynamicResource AppMuted}"/>
+              </Border>
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsChecked" Value="True">
+              <Setter TargetName="Track" Property="Background" Value="{DynamicResource AppAccent}"/>
+              <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource AppAccentText}"/>
+              <Setter TargetName="Thumb" Property="Fill" Value="{DynamicResource AppAccentInk}"/>
+              <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource AppEdge}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource AppAccentText}"/>
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+      <Style x:Key="SettingSlider" TargetType="Slider">
+        <Setter Property="Height" Value="24"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
+          <Grid>
+            <Border Height="5" CornerRadius="2.5" VerticalAlignment="Center" Background="{DynamicResource AppEdge}"/>
+            <Track x:Name="PART_Track" VerticalAlignment="Center">
+              <Track.DecreaseRepeatButton><RepeatButton Command="Slider.DecreaseLarge" Opacity="0" Focusable="False"/></Track.DecreaseRepeatButton>
+              <Track.IncreaseRepeatButton><RepeatButton Command="Slider.IncreaseLarge" Opacity="0" Focusable="False"/></Track.IncreaseRepeatButton>
+              <Track.Thumb><Thumb Width="16" Height="16">
+                <Thumb.Template><ControlTemplate TargetType="Thumb">
+                  <Border CornerRadius="8" Background="{DynamicResource AppAccent}" BorderBrush="{DynamicResource AppAccentText}" BorderThickness="1"/>
+                </ControlTemplate></Thumb.Template>
+              </Thumb></Track.Thumb>
+            </Track>
+          </Grid>
+        </ControlTemplate></Setter.Value></Setter>
+      </Style>
+    </ResourceDictionary>
+  </UserControl.Resources>
+  <DockPanel>
+    <Button DockPanel.Dock="Bottom" Content="Done" Click="Cancel" MinWidth="74" Style="{StaticResource ActionButton}"
+        HorizontalAlignment="Right" Margin="0,10,0,0"/>
+    <TabControl x:Name="SettingsTabs" SelectedIndex="0" ItemContainerStyle="{StaticResource SettingsTab}"
+        AutomationProperties.Name="Settings category">
+      <TabControl.Template><ControlTemplate TargetType="TabControl">
+        <Grid>
+          <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
+          <Border Margin="0,0,0,13" Padding="3" CornerRadius="{DynamicResource AppControlCorner}" Background="{DynamicResource AppBackground}"
+              BorderBrush="{DynamicResource AppEdge}" BorderThickness="1">
+            <UniformGrid Rows="1" IsItemsHost="True" KeyboardNavigation.TabNavigation="Once"/>
+          </Border>
+          <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1" ContentSource="SelectedContent"/>
+        </Grid>
+      </ControlTemplate></TabControl.Template>
+      <TabItem Header="Behavior">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel>
+            <Border Style="{StaticResource SettingsCard}">
+              <StackPanel>
+                <TextBlock Text="Startup" Style="{StaticResource SettingsHeading}"/>
+                <CheckBox x:Name="StartupToggle" Content="Launch on system startup" Style="{StaticResource SettingSwitch}"
+                    Checked="ChangeStartup" Unchecked="ChangeStartup" AutomationProperties.HelpText="Launch AppDex when you sign in to Windows."/>
+                <StackPanel x:Name="StartupModeRow" Visibility="Collapsed" Margin="14,3,4,5">
+                  <Label Content="Startup mode" Target="{Binding ElementName=StartupModePicker}" Foreground="{DynamicResource AppMuted}"
+                      Padding="0,0,0,4"/>
+                  <ComboBox x:Name="StartupModePicker" Height="32" AutomationProperties.Name="Startup mode" SelectionChanged="ChangeBehavior">
+                    <ComboBoxItem Content="Open window"/>
+                    <ComboBoxItem Content="System tray only"/>
+                  </ComboBox>
+                </StackPanel>
+                <TextBlock x:Name="Feedback" Visibility="Collapsed" TextWrapping="Wrap" Foreground="{DynamicResource AppDanger}"
+                    AutomationProperties.LiveSetting="Polite" Margin="5,5,0,2"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingsCard}">
+              <StackPanel>
+                <TextBlock Text="Launching apps" Style="{StaticResource SettingsHeading}"/>
+                <CheckBox x:Name="ConfirmLaunchToggle" Content="Confirm before launching apps" Style="{StaticResource SettingSwitch}"
+                    Checked="ChangeBehavior" Unchecked="ChangeBehavior"/>
+                <Label Content="After launching an app" Padding="4,7,0,5" Foreground="{DynamicResource AppText}"
+                    Target="{Binding ElementName=AfterLaunchPicker}"/>
+                <ComboBox x:Name="AfterLaunchPicker" Height="32" Margin="4,0" AutomationProperties.Name="After launching an app"
+                    SelectionChanged="ChangeBehavior">
+                  <ComboBoxItem Content="Do nothing"/>
+                  <ComboBoxItem Content="Minimize to tray"/>
+                  <ComboBoxItem Content="Fully close AppDex"/>
+                </ComboBox>
+                <TextBlock x:Name="AfterLaunchWarning" Style="{StaticResource PlaytimeWarning}" AutomationProperties.LiveSetting="Polite"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingsCard}">
+              <StackPanel>
+                <Label Content="On AppDex closure" Padding="4,0,0,5" Foreground="{DynamicResource AppText}"
+                    Target="{Binding ElementName=OnClosePicker}"/>
+                <ComboBox x:Name="OnClosePicker" Height="32" Margin="4,0" AutomationProperties.Name="On AppDex closure"
+                    SelectionChanged="ChangeBehavior">
+                  <ComboBoxItem Content="Minimize to system tray"/>
+                  <ComboBoxItem Content="Fully close AppDex"/>
+                </ComboBox>
+                <TextBlock x:Name="OnCloseWarning" Style="{StaticResource PlaytimeWarning}" AutomationProperties.LiveSetting="Polite"/>
+              </StackPanel>
+            </Border>
+            <Border Style="{StaticResource SettingsCard}">
+              <StackPanel>
+                <TextBlock Text="Feedback" Style="{StaticResource SettingsHeading}"/>
+                <CheckBox x:Name="UiSoundsToggle" Content="UI sounds" Style="{StaticResource SettingSwitch}"
+                    Checked="ChangeUiSounds" Unchecked="ChangeUiSounds"
+                    AutomationProperties.HelpText="Play quiet sounds when hovering over game tiles, dropping tiles, launching games, or showing an error."/>
+              </StackPanel>
+            </Border>
+            <Border x:Name="LibrarySyncCard" Style="{StaticResource SettingsCard}">
+              <StackPanel>
+                <TextBlock Text="Library sync" Style="{StaticResource SettingsHeading}"/>
+                <CheckBox x:Name="SteamSyncToggle" Content="Sync installed Steam games" Style="{StaticResource SettingSwitch}"
+                    Checked="ChangeLibrarySync" Unchecked="ChangeLibrarySync"/>
+                <CheckBox x:Name="EpicSyncToggle" Content="Sync installed Epic Games titles" Style="{StaticResource SettingSwitch}"
+                    Checked="ChangeLibrarySync" Unchecked="ChangeLibrarySync"/>
+                <TextBlock Text="Automatically add installed games while AppDex is running, including in the system tray. Uninstalled games keep their tiles and playtime."
+                    Margin="4,5,4,0" TextWrapping="Wrap" Foreground="{DynamicResource AppMuted}"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      <TabItem Header="Appearance">
+        <ContentControl x:Name="AppearanceHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</UserControl>

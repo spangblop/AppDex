@@ -1,0 +1,60 @@
+<UserControl x:Class="GameShelf.ImportPane" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Foreground="{DynamicResource AppText}" FontFamily="{DynamicResource AppBodyFont}" FontSize="{DynamicResource AppBodySize}" UseLayoutRounding="True">
+  <UserControl.Resources><ResourceDictionary>
+    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls.xaml"/></ResourceDictionary.MergedDictionaries>
+  </ResourceDictionary></UserControl.Resources>
+  <Grid Margin="0">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <TextBlock x:Name="InstalledNotice" Text="Install your games on this PC before importing them. AppDex only lists installed games."
+        Foreground="{DynamicResource AppMuted}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+    <WrapPanel x:Name="Sources" Grid.Row="1" Margin="0,0,0,12">
+      <RadioButton x:Name="Local" Content="Installed on this PC" IsChecked="True" Foreground="{DynamicResource AppText}" Margin="0,0,20,0" Checked="SourceChanged"/>
+      <RadioButton x:Name="Account" Content="By Steam account" Foreground="{DynamicResource AppText}" Checked="SourceChanged"/>
+    </WrapPanel>
+    <DockPanel Grid.Row="2" x:Name="FolderFields" Margin="0,0,0,6">
+      <Button DockPanel.Dock="Right" Content="Choose folder…" Click="ChooseFolder" Style="{StaticResource ActionButton}"
+          AutomationProperties.Name="Choose Steam library folder"/>
+      <Button DockPanel.Dock="Right" x:Name="AutoFolder" Content="Auto-detect" Click="AutoDetect" Style="{StaticResource ActionButton}"
+          Margin="0,0,6,0" Visibility="Collapsed"/>
+      <TextBlock x:Name="FolderPath" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,8,0"
+          Foreground="{DynamicResource AppMuted}" ToolTip="{Binding Text,RelativeSource={RelativeSource Self}}"/>
+    </DockPanel>
+    <StackPanel Grid.Row="2" x:Name="AccountFields" Visibility="Collapsed">
+      <TextBlock Text="17-digit SteamID" Foreground="{DynamicResource AppText}"/>
+      <TextBox x:Name="SteamId" AutomationProperties.Name="SteamID" Margin="0,4,0,8" Padding="6,4" TextChanged="CredentialsChanged"/>
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Left" Text="Personal Steam Web API key" Foreground="{DynamicResource AppText}" VerticalAlignment="Center"/>
+        <Button HorizontalAlignment="Right" Style="{StaticResource ActionButton}" Content="Get a key ↗" Padding="6,2" Click="OpenKeyPage"/>
+      </DockPanel>
+      <PasswordBox x:Name="Key" AutomationProperties.Name="Steam Web API key" Padding="6,4" Margin="0,4,0,5" PasswordChanged="CredentialsChanged"/>
+      <TextBlock Text="AppDex sends the key to Steam for this lookup. It is never saved." TextWrapping="Wrap" Foreground="{DynamicResource AppMuted}" FontSize="12"/>
+      <Button x:Name="LoadAccount" Content="Load apps" Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Margin="0,8,0,0" Click="LoadOwned"/>
+    </StackPanel>
+    <Grid Grid.Row="3" Margin="0,6,0,8">
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+      <TextBlock x:Name="Summary" Foreground="{DynamicResource AppText}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+      <CheckBox x:Name="SelectAll" Grid.Row="1" Content="Select all" Foreground="{DynamicResource AppText}" Margin="0,9,0,0" Checked="ToggleAll" Unchecked="ToggleAll" IsEnabled="False"/>
+    </Grid>
+    <ListBox x:Name="Titles" Grid.Row="4" Background="{DynamicResource AppPanel}" BorderBrush="{DynamicResource AppEdge}" Padding="4"
+        ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingStackPanel.VirtualizationMode="Recycling"
+        AutomationProperties.Name="Apps available to import">
+      <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem">
+        <Setter Property="Focusable" Value="False"/><Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><ContentPresenter/></ControlTemplate></Setter.Value></Setter>
+      </Style></ListBox.ItemContainerStyle>
+      <ListBox.ItemTemplate><DataTemplate>
+        <CheckBox IsChecked="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+            Foreground="{DynamicResource AppText}" Padding="5,0" Margin="6,5" VerticalContentAlignment="Center" AutomationProperties.Name="{Binding Name}">
+          <TextBlock Text="{Binding Name}" TextWrapping="Wrap"/>
+        </CheckBox>
+      </DataTemplate></ListBox.ItemTemplate>
+    </ListBox>
+    <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+      <Button Content="Cancel" Click="Cancel" Style="{StaticResource ActionButton}" Margin="0,0,8,0"/>
+      <Button x:Name="ImportButton" Content="Import apps" Click="Import" Style="{StaticResource ActionButton}"
+          Background="{DynamicResource AppAccent}" BorderBrush="{DynamicResource AppAccent}" Foreground="{DynamicResource AppAccentInk}" FontWeight="Bold" IsEnabled="False"/>
+    </StackPanel>
+  </Grid>
+</UserControl>
