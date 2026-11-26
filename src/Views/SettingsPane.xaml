@@ -155,6 +155,17 @@
                   <ComboBoxItem Content="Fully close AppDex"/>
                 </ComboBox>
                 <TextBlock x:Name="AfterLaunchWarning" Style="{StaticResource PlaytimeWarning}" AutomationProperties.LiveSetting="Polite"/>
+                <Label Content="Quick Launch shortcut" Padding="4,12,0,5" Foreground="{DynamicResource AppText}"
+                    Target="{Binding ElementName=QuickModifiers}"/>
+                <DockPanel Margin="4,0">
+                  <Button DockPanel.Dock="Right" Content="Save shortcut" Style="{DynamicResource ActionButton}" Click="SaveQuickShortcut" Margin="8,0,0,0"/>
+                  <ComboBox x:Name="QuickKey" DockPanel.Dock="Right" Width="58" Margin="8,0,0,0"
+                      AutomationProperties.Name="Quick Launch key"/>
+                  <ComboBox x:Name="QuickModifiers" Height="32" SelectionChanged="ChangeQuickModifiers"
+                      AutomationProperties.Name="Quick Launch modifiers"/>
+                </DockPanel>
+                <TextBlock x:Name="QuickShortcutStatus" TextWrapping="Wrap" Margin="4,4,4,0" Visibility="Collapsed"
+                    AutomationProperties.LiveSetting="Polite"/>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource SettingsCard}">

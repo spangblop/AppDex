@@ -32,6 +32,8 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public bool QuitOnWindowClose;
         [DataMember(EmitDefaultValue = false)] public bool StartupInTray;
         [DataMember(EmitDefaultValue = false)] public bool UiSoundsEnabled;
+        [DataMember(EmitDefaultValue = false)] public int? QuickLaunchModifiers;
+        [DataMember(EmitDefaultValue = false)] public int? QuickLaunchKey;
         [DataMember(EmitDefaultValue = false)] public bool SyncSteam;
         [DataMember(EmitDefaultValue = false)] public bool SyncEpic;
         [DataMember] public List<string> Order = new List<string>();

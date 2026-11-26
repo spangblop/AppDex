@@ -15,8 +15,9 @@ using System.Windows.Threading;
 
 [assembly: AssemblyTitle("AppDex")]
 [assembly: AssemblyProduct("AppDex")]
-[assembly: AssemblyVersion("0.1.1.0")]
-[assembly: AssemblyInformationalVersion("Beta 0.1.1")]
+[assembly: AssemblyVersion("0.3.0.0")]
+[assembly: AssemblyFileVersion("0.3.0.0")]
+[assembly: AssemblyInformationalVersion("Beta 0.3.0")]
 
 namespace GameShelf
 {
@@ -31,6 +32,12 @@ namespace GameShelf
         internal bool StartupInTray => preferences.StartupInTray;
         internal event Action QuitRequested;
         internal event Action<Game> ResetActivityRequested;
+        internal event Action GameShortcutsChanged;
+        internal event Action<string> HiddenLaunchError;
+        internal Func<Game, int, int, string> ValidateGameShortcut;
+        internal Func<int, int, string> RegisterQuickShortcut;
+        internal int QuickLaunchModifiers => preferences.QuickLaunchModifiers ?? LaunchHotkeys.DefaultModifiers;
+        internal int QuickLaunchKey => preferences.QuickLaunchKey ?? LaunchHotkeys.DefaultKey;
         private readonly Action<Game> launch;
         private const long LaunchTimeoutMilliseconds = 15000;
         private readonly Dictionary<Game, PendingLaunch> pending = new Dictionary<Game, PendingLaunch>();
@@ -137,6 +144,7 @@ namespace GameShelf
                 settings.Closed += ClosePanel;
                 settings.HighlightChanged += HighlightAppearance;
                 settings.LibrarySyncChanged += UpdateLibrarySync;
+                settings.RegisterQuickShortcut = RegisterQuickShortcut;
                 settings.UiSoundsChanged += delegate
                 {
                     if (!preferences.UiSoundsEnabled) uiSounds.Stop();
@@ -189,6 +197,7 @@ namespace GameShelf
         {
             if (catalog.LoadError != null) { Announce(catalog.LoadError); return; }
             var editor = new AppEditorPane(catalog, game);
+            editor.ValidateShortcut = ValidateGameShortcut;
             editor.Closed += ClosePanel;
             if (game != null) editor.ResetActivity += () => ResetActivityRequested?.Invoke(game);
             editor.Completed += delegate
@@ -206,6 +215,7 @@ namespace GameShelf
                 }
                 CommitPreferences();
                 Announce((game == null ? "Added " : "Saved changes to ") + editor.Result.Name + ".");
+                GameShortcutsChanged?.Invoke();
             };
             ShowPanel(game == null ? "Add app" : "Edit app", editor);
         }
@@ -217,6 +227,7 @@ namespace GameShelf
                 if (e.Key == Key.Escape) { DismissQuit(); e.Handled = true; }
                 return;
             }
+            if (panelOpen && DrawerContent.Content is AppEditorPane editor && editor.HandleShortcutKey(e)) return;
             if (e.Key == Key.Escape && PanelLayer.Visibility == Visibility.Visible) ClosePanel();
             else if (e.Key == Key.Escape && MenuLayer.Visibility == Visibility.Visible) CloseMenu();
             else if (PanelLayer.Visibility == Visibility.Visible || MenuLayer.Visibility == Visibility.Visible) return;
@@ -234,6 +245,12 @@ namespace GameShelf
                 visible[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent, visible[0]));
             else return;
             e.Handled = true;
+        }
+
+        internal bool CaptureRegisteredShortcut(int modifiers, int key)
+        {
+            return IsActive && panelOpen && DrawerContent.Content is AppEditorPane editor &&
+                editor.CaptureRegisteredShortcut(modifiers, key);
         }
 
         internal void ShowActivity(ActivityBook book)
@@ -281,6 +298,22 @@ namespace GameShelf
             if (!ReferenceEquals(sender, e.OriginalSource)) return;
             var tile = (Button)sender;
             Launch((Game)tile.DataContext, tile);
+        }
+
+        internal bool ShortcutNeedsLibrary(Game game)
+        {
+            return preferences.ConfirmLaunch || (game.IsInstalled == false && !game.Playing);
+        }
+
+        internal void LaunchFromShortcut(Game game)
+        {
+            if (QuitLayer.Visibility == Visibility.Visible || !Games.Contains(game)) return;
+            if (preferences.ConfirmLaunch && panelOpen)
+            {
+                AnnounceError("Close the current panel before launching with a shortcut.");
+                return;
+            }
+            Launch(game);
         }
 
         private void Launch(Game game, Button tile = null)
@@ -394,7 +427,11 @@ namespace GameShelf
             game.SetLaunching(false);
             UpdateLaunchWatch();
             if (message != null && attempt.Number == latestRequest) Announce(message);
-            if (error) ShowErrorToast(message);
+            if (error)
+            {
+                if (!IsVisible || WindowState == WindowState.Minimized) HiddenLaunchError?.Invoke(message);
+                ShowErrorToast(message);
+            }
         }
 
         internal void Announce(string message)

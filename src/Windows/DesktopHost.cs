@@ -21,6 +21,7 @@ namespace GameShelf
         private long lastSave;
         private bool exiting;
         private string trackingError;
+        private QuickLaunchWindow quickLaunch;
 
         [STAThread]
         public static void Main(string[] args)
@@ -51,6 +52,8 @@ namespace GameShelf
             using (var icon = Icon.ExtractAssociatedIcon(typeof(DesktopHost).Assembly.Location))
             using (var menu = new Forms.ContextMenuStrip())
             using (var tray = new Forms.NotifyIcon { Icon = icon, Text = AppBuild.Name + " · Tracking app activity", ContextMenuStrip = menu })
+            using (var hotkeys = new LaunchHotkeys(ShowQuickLaunch, LaunchFromShortcut,
+                window.QuickLaunchModifiers, window.QuickLaunchKey))
             {
                 Action quit = delegate
                 {
@@ -59,9 +62,28 @@ namespace GameShelf
                     app.Shutdown();
                 };
                 menu.Items.Add("Open " + AppBuild.Name, null, delegate { ShowLibrary(); });
+                var quickItem = menu.Items.Add("Quick launch", null, delegate { ShowQuickLaunch(); });
+                Action updateQuickLabel = () => quickItem.Text = hotkeys.QuickLaunchRegistered
+                    ? "Quick launch (" + hotkeys.QuickLaunchLabel + ")" : "Quick launch";
+                updateQuickLabel();
+                window.RegisterQuickShortcut = (modifiers, key) =>
+                {
+                    string error = hotkeys.SetQuickLaunch(window.Games, modifiers, key);
+                    if (error == null) updateQuickLabel();
+                    return error;
+                };
                 menu.Items.Add("Quit " + AppBuild.Name, null, delegate { quit(); });
                 window.QuitRequested += quit;
                 window.ResetActivityRequested += ResetGameActivity;
+                window.ValidateGameShortcut = (game, modifiers, key) => hotkeys.Validate(window.Games, game, modifiers, key);
+                hotkeys.Capture = window.CaptureRegisteredShortcut;
+                Action refreshShortcuts = delegate
+                {
+                    string warning = hotkeys.Refresh(window.Games);
+                    if (warning != null) window.Announce(warning);
+                };
+                window.GameShortcutsChanged += refreshShortcuts;
+                window.HiddenLaunchError += message => tray.ShowBalloonTip(4500, AppBuild.Name, message, Forms.ToolTipIcon.Warning);
                 tray.MouseClick += delegate(object sender, Forms.MouseEventArgs e)
                 {
                     if (e.Button == Forms.MouseButtons.Left) ShowLibrary();
@@ -89,6 +111,9 @@ namespace GameShelf
                     tray.Visible = false;
                 };
                 Record(false);
+                refreshShortcuts();
+                if (window.QuickLaunchModifiers != 0 && !hotkeys.QuickLaunchRegistered)
+                    window.Announce(hotkeys.QuickLaunchLabel + " is unavailable. Use Quick launch from the AppDex tray menu.");
                 timer.Start();
                 app.MainWindow = window;
                 if (!atSignIn || !window.StartupInTray) window.Show();
@@ -102,6 +127,23 @@ namespace GameShelf
             window.Show();
             if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
             window.Activate();
+        }
+
+        private void ShowQuickLaunch()
+        {
+            if (exiting) return;
+            if (quickLaunch != null) { quickLaunch.Close(); return; }
+            quickLaunch = new QuickLaunchWindow(window.Games, LaunchFromShortcut);
+            quickLaunch.Closed += delegate { quickLaunch = null; };
+            quickLaunch.Show();
+        }
+
+        private void LaunchFromShortcut(Game game)
+        {
+            if (exiting) return;
+            quickLaunch?.Close();
+            if (window.ShortcutNeedsLibrary(game)) ShowLibrary();
+            window.LaunchFromShortcut(game);
         }
 
         private void Record(bool flush)
@@ -128,10 +170,13 @@ namespace GameShelf
         private long SampleActivity(out bool changed)
         {
             if (book == null) book = ActivityBook.Load(file);
-            var custom = window.Games.Where(g => g.Settings.Executable != null)
+            var library = window.Games.ToArray();
+            var ids = new System.Collections.Generic.HashSet<string>(library.Select(game => game.Id));
+            var custom = library.Where(g => g.Settings.Executable != null)
                 .GroupBy(g => g.Settings.Executable, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
-            var sample = GameProcesses.Read(session, custom).Concat(SteamLibrary.Running(window.Games, session)).ToArray();
+            var sample = GameProcesses.Read(session, custom).Where(game => ids.Contains(game.GameId))
+                .Concat(SteamLibrary.Running(library, session)).ToArray();
             long now = GameProcesses.AwakeTicks();
             changed = book.Observe(sample, now, DateTime.UtcNow.Ticks);
             return now;

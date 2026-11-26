@@ -72,6 +72,15 @@
         <TextBox x:Name="Arguments" Style="{StaticResource EditorField}" AutomationProperties.Name="Launch arguments" HorizontalScrollBarVisibility="Hidden"/>
         <TextBlock Text="Use quotes around values that contain spaces." Foreground="{DynamicResource AppMuted}" FontSize="12"
             Margin="0,5,0,2" TextWrapping="Wrap"/>
+        <Label Content="Launch shortcut" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=RecordShortcut}" Margin="0,16,0,0"/>
+        <WrapPanel>
+          <Button x:Name="RecordShortcut" Style="{StaticResource ActionButton}" MinWidth="130" Margin="0,0,6,0"
+              Click="BeginShortcutCapture" LostKeyboardFocus="CancelShortcutCapture"
+              AutomationProperties.HelpText="Press to record a shortcut for this app."/>
+          <Button x:Name="ClearShortcut" Content="Clear" Style="{StaticResource ActionButton}" Click="RemoveShortcut"/>
+        </WrapPanel>
+        <TextBlock x:Name="ShortcutHint" TextWrapping="Wrap" Foreground="{DynamicResource AppMuted}" Margin="0,4,0,0"
+            Visibility="Collapsed" AutomationProperties.LiveSetting="Polite"/>
         <StackPanel x:Name="PlayStatsFields" Visibility="Collapsed" Margin="0,16,0,0">
           <TextBlock Text="Play stats" FontWeight="SemiBold"/>
           <TextBlock Text="{Binding Statistics}" Foreground="{DynamicResource AppMuted}" Margin="0,4,0,7"/>

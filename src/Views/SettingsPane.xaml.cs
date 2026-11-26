@@ -15,6 +15,7 @@ namespace GameShelf
         internal event Action<AppearanceTarget> HighlightChanged;
         internal event Action LibrarySyncChanged;
         internal event Action UiSoundsChanged;
+        internal Func<int, int, string> RegisterQuickShortcut;
 
         internal SettingsPane(StartupRegistration startup, LibraryPreferences preferences, Action save, Action apply, string dataDirectory)
         {
@@ -25,6 +26,11 @@ namespace GameShelf
             InitializeComponent();
             ConfirmLaunchToggle.IsChecked = preferences.ConfirmLaunch;
             AfterLaunchPicker.SelectedIndex = preferences.QuitAfterLaunch ? 2 : preferences.MinimizeAfterLaunch ? 1 : 0;
+            QuickModifiers.ItemsSource = LaunchHotkeys.ModifierLabels;
+            QuickKey.ItemsSource = LaunchHotkeys.Keys;
+            QuickKey.SelectedIndex = Math.Max(0, Array.IndexOf(LaunchHotkeys.Keys, (char)(preferences.QuickLaunchKey ?? LaunchHotkeys.DefaultKey)));
+            QuickModifiers.SelectedIndex = Math.Max(0, Array.IndexOf(LaunchHotkeys.ModifierValues,
+                preferences.QuickLaunchModifiers ?? LaunchHotkeys.DefaultModifiers));
             OnClosePicker.SelectedIndex = preferences.QuitOnWindowClose ? 1 : 0;
             StartupModePicker.SelectedIndex = preferences.StartupInTray ? 1 : 0;
             UiSoundsToggle.IsChecked = preferences.UiSoundsEnabled;
@@ -39,6 +45,25 @@ namespace GameShelf
         }
 
         internal void CommitAppearance() { editor.Commit(); }
+
+        private void ChangeQuickModifiers(object sender, RoutedEventArgs e)
+        {
+            QuickKey.IsEnabled = QuickModifiers.SelectedIndex > 0;
+        }
+
+        private void SaveQuickShortcut(object sender, RoutedEventArgs e)
+        {
+            int modifiers = LaunchHotkeys.ModifierValues[Math.Max(0, QuickModifiers.SelectedIndex)];
+            int key = modifiers == 0 ? 0 : (char)QuickKey.SelectedItem;
+            string error = RegisterQuickShortcut?.Invoke(modifiers, key);
+            QuickShortcutStatus.SetResourceReference(TextBlock.ForegroundProperty, error == null ? "AppMuted" : "AppDanger");
+            QuickShortcutStatus.Text = error ?? (modifiers == 0 ? "Quick Launch shortcut turned off." : "Shortcut saved.");
+            QuickShortcutStatus.Visibility = Visibility.Visible;
+            if (error != null) return;
+            preferences.QuickLaunchModifiers = modifiers;
+            preferences.QuickLaunchKey = key;
+            save();
+        }
 
         internal void ShowAppearanceSample(FrameworkElement source, HighlightPart part, double radius) =>
             editor.ShowAppearanceSample(source, part, radius);

@@ -21,6 +21,8 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public bool Removed;
         [DataMember(EmitDefaultValue = false)] public string EpicUri;
         [DataMember(EmitDefaultValue = false)] public string EpicArguments;
+        [DataMember(EmitDefaultValue = false)] public int ShortcutModifiers;
+        [DataMember(EmitDefaultValue = false)] public int ShortcutKey;
         public GameSettings Copy() { return (GameSettings)MemberwiseClone(); }
     }
 
@@ -36,20 +38,27 @@ namespace GameShelf
         public GameCatalog(string directory)
         {
             this.directory = directory;
+            var stock = Game.Library().ToDictionary(game => game.Id);
+            var preferences = LibraryPreferences.Load(PreferencesFile);
+            var previous = new HashSet<string>(preferences.Order.Concat(preferences.Pins)
+                .Concat(preferences.Groups.Where(group => group?.Apps != null).SelectMany(group => group.Apps)));
+            if (!File.Exists(PreferencesFile))
+                previous.UnionWith(ActivityBook.Load(Path.Combine(directory, "activity.json")).Games.Keys);
+            var legacy = stock.Values.Where(game => previous.Contains(game.Id)).ToList();
             try
             {
                 List<GameSettings> entries;
                 using (var input = File.OpenRead(FileName))
                     entries = (List<GameSettings>)Serializer().ReadObject(input);
                 var ids = new HashSet<string>();
-                var loaded = Game.Library().ToList();
+                var loaded = new List<Game>(legacy);
                 if (entries == null) throw new InvalidDataException("Invalid app library.");
                 string steamRoot = entries.Any(s => s != null && s.SteamAppId > 0) ? SteamLibrary.Locate() : null;
                 foreach (var entry in entries)
                 {
                     if (entry == null || string.IsNullOrWhiteSpace(entry.Name) || !ids.Add(entry.Id))
                         throw new InvalidDataException("Invalid app entry.");
-                    var game = loaded.FirstOrDefault(g => g.Id == entry.Id);
+                    stock.TryGetValue(entry.Id ?? "", out Game game);
                     if (entry.Removed) { if (game != null) loaded.Remove(game); continue; }
                     if (entry.SteamAppId != 0)
                     {
@@ -75,6 +84,7 @@ namespace GameShelf
                             throw new InvalidDataException("Invalid custom app.");
                         loaded.Add(game = Game.CustomGame(entry));
                     }
+                    else if (!loaded.Contains(game)) loaded.Add(game);
                     ImageSource picture = null;
                     if (entry.Picture != null)
                     {
@@ -97,7 +107,7 @@ namespace GameShelf
             catch (FileNotFoundException) { }
             catch (DirectoryNotFoundException) { }
             catch (Exception error) { LoadError = "Couldn't load the saved library. " + error.Message; }
-            if (Games == null) Games = Game.Library().ToList();
+            if (Games == null) Games = legacy;
         }
 
         private static DataContractJsonSerializer Serializer()

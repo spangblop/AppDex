@@ -84,7 +84,8 @@ namespace GameShelf
                 foreach (var game in ordered.Where(game => matching.Contains(game.Id))) AddTile(game);
             }
             if (visible.Count == 0) Covers.Children.Add(new TextBlock {
-                Text = "No matching apps", FontSize = 19, Margin = new Thickness(4, 19, 0, 0) });
+                Text = all.Count == 0 ? "Add an app or import a library to get started." : "No matching apps",
+                FontSize = 19, Margin = new Thickness(4, 19, 0, 0), TextWrapping = TextWrapping.Wrap });
             int count = group == null ? all.Count : group.Apps.Count;
             CountText.Text = shown == count ? AppCount(count) : shown + " of " + AppCount(count);
             ViewTitle.Text = group == null ? "Library" : group.Name;
@@ -348,6 +349,7 @@ namespace GameShelf
             lastClick.Remove(app);
             CommitPreferences();
             Announce("Removed " + app.Name + " from the library.");
+            GameShortcutsChanged?.Invoke();
         }
 
         private void ResizeLibrary()
