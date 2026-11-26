@@ -13,7 +13,7 @@ Download the Windows ZIP from [Releases](../../releases), extract it, and open `
 
 ![AppDex library showing game covers, pins, launch counts, and total playtime](docs/screenshots/library.png)
 
-### Quick Launch
+### Quick Launch with Alt + x (Changeable)
 
 ![AppDex Quick Launch showing search results for Minecraft](docs/screenshots/quick-launch.png)
 
