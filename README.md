@@ -10,7 +10,6 @@ Download the Windows ZIP from [Releases](../../releases), extract it, and open `
 
 ### Library
 
-An example library with pinned games and sample playtime.
 
 ![AppDex library showing game covers, pins, launch counts, and total playtime](docs/screenshots/library.png)
 
