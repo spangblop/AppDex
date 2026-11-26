@@ -30,10 +30,11 @@ namespace GameShelf
         private static string wallpaperPath;
         private static ImageSource wallpaper;
         internal const string DefaultAccent = "#C7F876";
+        internal const string DefaultHeadingFont = "Arial";
         private const string SerifHeading = "Baskervville, Georgia";
         private static readonly AppStyle[] LegacyLooks =
         {
-            new AppStyle("Classic", "CoverButton", 206, 137, 295, SerifHeading,
+            new AppStyle("Classic", "CoverButton", 206, 137, 295, DefaultHeadingFont,
                 "#111414", "#1C211F", "#29332E", "#526057", "#C1CBC2", "#F4F6F0", "#FFAD9D"),
             new AppStyle("Gallery", "AlternateCoverButton", 206, 163, 295, SerifHeading,
                 "#141724", "#202638", "#2A3349", "#4D5C78", "#B6C3DF", "#F4F6F0", "#FFAD9D"),

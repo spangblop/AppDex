@@ -438,7 +438,7 @@
                   HorizontalContentAlignment="Left" Padding="9,6" Margin="0,0,0,17"/>
               <TextBlock Text="Pinned" Foreground="{DynamicResource AppMuted}" FontWeight="SemiBold" FontSize="12" Margin="6,0,0,9"/>
             </StackPanel>
-            <local:LibraryScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" CanContentScroll="False">
+            <local:LibraryScrollViewer x:Name="PinnedScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto" CanContentScroll="False">
               <StackPanel x:Name="Pinned"/>
             </local:LibraryScrollViewer>
           </DockPanel>

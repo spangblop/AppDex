@@ -47,6 +47,9 @@
       <StackPanel>
         <Label Content="App name" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=GameName}"/>
         <TextBox x:Name="GameName" Style="{StaticResource EditorField}" AutomationProperties.Name="App name"/>
+        <Label Content="Search aliases" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=SearchAliases}" Margin="0,16,0,0"/>
+        <TextBox x:Name="SearchAliases" Style="{StaticResource EditorField}" AutomationProperties.Name="Search aliases"
+            AutomationProperties.HelpText="Enter nicknames separated by commas."/>
         <StackPanel x:Name="ExecutableFields" Margin="0,15,0,0">
           <Label Content="App executable" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=Executable}"/>
           <DockPanel>
@@ -68,7 +71,24 @@
                 Margin="0,3,0,0" Visibility="Collapsed"/>
           </WrapPanel>
         </Grid>
-        <Label Content="Launch arguments (optional)" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=Arguments}" Margin="0,16,0,0"/>
+        <Label Content="Launch profiles" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=ProfilePicker}" Margin="0,16,0,0"/>
+        <DockPanel>
+          <WrapPanel DockPanel.Dock="Right">
+            <Button Content="Add profile" Click="AddProfile" Style="{StaticResource ActionButton}" Margin="6,0,0,0"/>
+            <Button x:Name="RemoveProfileButton" Content="Remove" Click="RemoveProfile" Style="{StaticResource ActionButton}" Margin="6,0,0,0"/>
+          </WrapPanel>
+          <ComboBox x:Name="ProfilePicker" Height="32" SelectionChanged="ChangeProfile" AutomationProperties.Name="Launch profile"/>
+        </DockPanel>
+        <StackPanel x:Name="ProfileFields" Visibility="Collapsed">
+          <Label Content="Profile name" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=ProfileName}" Margin="0,8,0,0"/>
+          <TextBox x:Name="ProfileName" Style="{StaticResource EditorField}" AutomationProperties.Name="Profile name"/>
+          <Label Content="Executable override (optional)" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=ProfileExecutable}" Margin="0,8,0,0"/>
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Browse…" Style="{StaticResource ActionButton}" Click="BrowseProfileExecutable" Margin="8,0,0,0"/>
+            <TextBox x:Name="ProfileExecutable" Style="{StaticResource EditorField}" AutomationProperties.Name="Profile executable"/>
+          </DockPanel>
+        </StackPanel>
+        <Label Content="Launch arguments (optional)" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=Arguments}" Margin="0,12,0,0"/>
         <TextBox x:Name="Arguments" Style="{StaticResource EditorField}" AutomationProperties.Name="Launch arguments" HorizontalScrollBarVisibility="Hidden"/>
         <TextBlock Text="Use quotes around values that contain spaces." Foreground="{DynamicResource AppMuted}" FontSize="12"
             Margin="0,5,0,2" TextWrapping="Wrap"/>

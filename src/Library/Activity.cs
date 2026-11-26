@@ -9,6 +9,7 @@ namespace GameShelf
 {
     internal sealed class RunningGame
     {
+        public int ProcessId;
         public string GameId;
         public string Instance;
         public long StartedUtcTicks;

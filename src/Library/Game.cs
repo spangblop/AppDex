@@ -40,6 +40,7 @@ namespace GameShelf
         public event PropertyChangedEventHandler PropertyChanged;
         private readonly string defaultTarget;
         private readonly string aliases;
+        private string[] searchWords;
 
         private Game(string name, string platform, string target, string art, string aliases = "", bool custom = false, ImageSource steamCover = null)
         {
@@ -49,6 +50,7 @@ namespace GameShelf
             Custom = custom;
             this.aliases = custom ? "" : name + " " + aliases;
             Settings = new GameSettings { Id = Id, Name = name, Executable = custom ? target : null, Arguments = "" };
+            UpdateSearchWords();
             UpdateStatistics(0, 0, false);
             DefaultArtwork = steamCover ?? (custom || art.StartsWith("steam-", StringComparison.Ordinal) || art.StartsWith("epic-", StringComparison.Ordinal) ? (ImageSource)CustomBackdrop() :
                 new BitmapImage(new Uri("pack://application:,,,/AppDex;component/Assets/" + art + ".jpg")));
@@ -90,6 +92,7 @@ namespace GameShelf
         internal void Apply(GameSettings settings, ImageSource picture)
         {
             Settings = settings;
+            UpdateSearchWords();
             Artwork = picture ?? DefaultArtwork;
             Changed("Name");
             Changed("AccessibleName");
@@ -111,8 +114,17 @@ namespace GameShelf
 
         public bool Matches(string[] terms)
         {
-            string searchTerms = Name + " " + Platform + " " + aliases;
-            return terms.All(term => searchTerms.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0);
+            return SearchScore(terms) >= 0;
+        }
+
+        internal int SearchScore(string[] terms) => GameSearch.Score(terms, searchWords);
+
+        private void UpdateSearchWords()
+        {
+            var nameWords = GameSearch.Tokens(Name);
+            string initials = string.Concat(nameWords.Select(word => word[0]));
+            searchWords = nameWords.Concat(GameSearch.Tokens(Platform + " " + aliases + " " + Settings.Aliases))
+                .Concat(nameWords.Length > 1 ? new[] { initials } : Array.Empty<string>()).Distinct().ToArray();
         }
 
         private void Changed(string property)
@@ -199,10 +211,27 @@ namespace GameShelf
             catch (UnauthorizedAccessException) { return false; }
         }
 
-        public static void Launch(Game game)
+        public static void Launch(Game game) => LaunchUsingProfile(game, null);
+
+        internal static ProcessStartInfo ProfileStartInfo(Game game, LaunchProfile profile, out string arguments)
         {
-            GameSettings settings = game.Settings;
-            var info = StartInfo(game, settings);
+            if (profile == null)
+            {
+                arguments = game.Settings.Arguments;
+                return StartInfo(game, game.Settings);
+            }
+            arguments = profile.Arguments;
+            if (!string.IsNullOrWhiteSpace(profile.Executable))
+                return new ProcessStartInfo(profile.Executable, arguments ?? "") {
+                    WorkingDirectory = Path.GetDirectoryName(profile.Executable), UseShellExecute = true };
+            var settings = game.Settings.Copy();
+            settings.Arguments = arguments;
+            return StartInfo(game, settings);
+        }
+
+        internal static void LaunchUsingProfile(Game game, LaunchProfile profile)
+        {
+            var info = ProfileStartInfo(game, profile, out string arguments);
             if (info != null)
             {
                 using (Process.Start(info)) { }
@@ -215,7 +244,7 @@ namespace GameShelf
             {
                 uint processId;
                 int result = manager.ActivateApplication(game.Target,
-                    string.IsNullOrWhiteSpace(settings.Arguments) ? null : settings.Arguments, 0, out processId);
+                    string.IsNullOrWhiteSpace(arguments) ? null : arguments, 0, out processId);
                 Marshal.ThrowExceptionForHR(result);
             }
             finally

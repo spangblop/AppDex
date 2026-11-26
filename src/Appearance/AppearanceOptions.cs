@@ -10,7 +10,7 @@ namespace GameShelf
         [DataMember] public int Layout, Columns, Texture, Sidebar;
         [DataMember] public double Width = 206, Height = 137, MaximumWidth = 295, Gap = 9;
         [DataMember] public double TileCorner = 12, ArtworkCorner = 5, ControlCorner = 7, TileOutline = 1, SideArtworkWidth = 92;
-        [DataMember] public string BodyFont = "Segoe UI", HeadingFont = "Segoe UI", TileFont = "Segoe UI";
+        [DataMember] public string BodyFont = "Segoe UI", HeadingFont = AppAppearance.DefaultHeadingFont, TileFont = "Segoe UI";
         [DataMember] public double BodySize = 13, HeadingSize = 26, TileTitleSize = 18, TileDetailSize = 13;
         [DataMember] public double SidebarWidth = 175, PinHeight = 53, PinArtwork = .63, SearchWidth = 180;
         [DataMember] public double TextureOpacity = 1, GradientAngle = 115, ArtworkOpacity = 1, CoverShade = 1;
@@ -65,7 +65,7 @@ namespace GameShelf
             Motion = Within(Motion, 0, 2, 1);
             if (!Enum.IsDefined(typeof(LaunchAnimation), LaunchCue)) LaunchCue = LaunchAnimation.Ripple;
             BodyFont = FontOrDefault(BodyFont);
-            HeadingFont = FontOrDefault(HeadingFont);
+            HeadingFont = string.IsNullOrWhiteSpace(HeadingFont) ? AppAppearance.DefaultHeadingFont : HeadingFont.Trim();
             TileFont = FontOrDefault(TileFont);
             if (Crop != Stretch.UniformToFill && Crop != Stretch.Uniform && Crop != Stretch.Fill) Crop = Stretch.UniformToFill;
             if (BackgroundImageFit != Stretch.UniformToFill && BackgroundImageFit != Stretch.Uniform &&

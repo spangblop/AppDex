@@ -166,6 +166,8 @@
                 </DockPanel>
                 <TextBlock x:Name="QuickShortcutStatus" TextWrapping="Wrap" Margin="4,4,4,0" Visibility="Collapsed"
                     AutomationProperties.LiveSetting="Polite"/>
+                <Button Content="Shortcut Manager" Style="{DynamicResource ActionButton}" HorizontalAlignment="Left"
+                    Margin="4,9,0,0" Click="OpenShortcutManager"/>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource SettingsCard}">

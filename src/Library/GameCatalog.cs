@@ -10,6 +10,17 @@ using System.Windows.Media.Imaging;
 namespace GameShelf
 {
     [DataContract]
+    internal sealed class LaunchProfile
+    {
+        [DataMember] public string Name { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string Executable;
+        [DataMember(EmitDefaultValue = false)] public string Arguments;
+        [DataMember(EmitDefaultValue = false)] public int ShortcutModifiers;
+        [DataMember(EmitDefaultValue = false)] public int ShortcutKey;
+        internal LaunchProfile Copy() => (LaunchProfile)MemberwiseClone();
+    }
+
+    [DataContract]
     internal sealed class GameSettings
     {
         [DataMember] public string Id;
@@ -23,7 +34,16 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public string EpicArguments;
         [DataMember(EmitDefaultValue = false)] public int ShortcutModifiers;
         [DataMember(EmitDefaultValue = false)] public int ShortcutKey;
-        public GameSettings Copy() { return (GameSettings)MemberwiseClone(); }
+        [DataMember(EmitDefaultValue = false)] public string Aliases;
+        [DataMember(EmitDefaultValue = false)] public List<LaunchProfile> Profiles;
+        internal IEnumerable<LaunchProfile> LaunchProfiles => Profiles ?? Enumerable.Empty<LaunchProfile>();
+
+        public GameSettings Copy()
+        {
+            var copy = (GameSettings)MemberwiseClone();
+            copy.Profiles = Profiles?.Select(profile => profile.Copy()).ToList();
+            return copy;
+        }
     }
 
     internal sealed class GameCatalog
@@ -154,6 +174,7 @@ namespace GameShelf
             draft.Name = (draft.Name ?? "").Trim();
             if (draft.Name.Length == 0) throw new ArgumentException("Enter a app name.");
             var existing = Games.FirstOrDefault(g => g.Id == draft.Id);
+            ValidateProfiles(draft, existing);
             bool custom = existing == null || existing.Custom;
             if (custom)
             {
@@ -163,7 +184,8 @@ namespace GameShelf
                 draft.Executable = Path.GetFullPath(path);
                 bool targetChanged = existing == null || !string.Equals(existing.Target, draft.Executable, StringComparison.OrdinalIgnoreCase);
                 if (targetChanged && !File.Exists(draft.Executable)) throw new FileNotFoundException("The selected executable could not be found.");
-                if (Games.Any(g => g != existing && string.Equals(g.Settings.Executable, draft.Executable, StringComparison.OrdinalIgnoreCase)))
+                if (Games.Any(g => g != existing && (string.Equals(g.Settings.Executable, draft.Executable, StringComparison.OrdinalIgnoreCase) ||
+                    g.Settings.LaunchProfiles.Any(profile => string.Equals(profile.Executable, draft.Executable, StringComparison.OrdinalIgnoreCase)))))
                     throw new ArgumentException("This executable is already in your library.");
             }
             else if (draft.EpicUri != null)
@@ -205,6 +227,33 @@ namespace GameShelf
             if (existing == null) Games.Add(game);
             if (oldPicture != null && !saved.Any(s => s.Picture == oldPicture)) DiscardFile(PicturePath(oldPicture));
             return game;
+        }
+
+        private void ValidateProfiles(GameSettings draft, Game existing)
+        {
+            var names = new HashSet<string>(StringComparer.CurrentCultureIgnoreCase);
+            foreach (var profile in draft.LaunchProfiles)
+            {
+                profile.Name = (profile.Name ?? "").Trim();
+                if (profile.Name.Length == 0 || !names.Add(profile.Name) ||
+                    profile.Name.Equals("Default", StringComparison.CurrentCultureIgnoreCase))
+                    throw new ArgumentException("Give each launch profile a different name.");
+                string path = Environment.ExpandEnvironmentVariables((profile.Executable ?? "").Trim().Trim('"'));
+                if (path.Length == 0) { profile.Executable = null; continue; }
+                if (!Path.IsPathRooted(path) || !string.Equals(Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase))
+                    throw new ArgumentException("Choose an executable (.exe) for " + profile.Name + ".");
+                profile.Executable = Path.GetFullPath(path);
+                bool alreadySaved = existing?.Settings.LaunchProfiles.Any(savedProfile =>
+                    string.Equals(savedProfile.Executable, profile.Executable, StringComparison.OrdinalIgnoreCase)) == true;
+                if (!alreadySaved && !File.Exists(profile.Executable))
+                    throw new FileNotFoundException("The executable for " + profile.Name + " could not be found.");
+                if (Games.Any(game => game != existing && game.Id != draft.Id &&
+                    (string.Equals(game.Settings.Executable, profile.Executable, StringComparison.OrdinalIgnoreCase) ||
+                    game.Settings.LaunchProfiles.Any(other => string.Equals(other.Executable, profile.Executable, StringComparison.OrdinalIgnoreCase)))))
+                    throw new ArgumentException("The executable for " + profile.Name + " belongs to another game.");
+            }
+            if (draft.Profiles?.Count == 0) draft.Profiles = null;
+            draft.Aliases = string.IsNullOrWhiteSpace(draft.Aliases) ? null : draft.Aliases.Trim();
         }
 
         internal SteamTitle[] NewSteamTitles(IEnumerable<SteamTitle> titles)

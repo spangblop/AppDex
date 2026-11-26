@@ -20,6 +20,9 @@ namespace GameShelf
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)] private static extern int GetPackageFamilyName(
             IntPtr handle, ref uint size, StringBuilder family);
         [DllImport("kernel32.dll")] private static extern bool QueryUnbiasedInterruptTime(out long ticks);
+        [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+        [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
+        [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr window, int command);
 
         public static long AwakeTicks()
         {
@@ -104,15 +107,66 @@ namespace GameShelf
                     }
                     string id = Identify(name, family, path);
                     if (id != null) result.Add(new RunningGame {
-                        GameId = id, Instance = process.Id + "/" + started, StartedUtcTicks = started });
+                        ProcessId = process.Id, GameId = id, Instance = process.Id + "/" + started, StartedUtcTicks = started });
                     string customId;
                     if (custom != null && custom.TryGetValue(path, out customId)) result.Add(new RunningGame {
-                        GameId = customId, Instance = process.Id + "/" + started, StartedUtcTicks = started });
+                        ProcessId = process.Id, GameId = customId, Instance = process.Id + "/" + started, StartedUtcTicks = started });
                 }
                 catch (InvalidOperationException) { /* The process ended during the snapshot. */ }
                 catch (Win32Exception) { /* The process is no longer accessible. */ }
             }
             return result.ToArray();
+        }
+
+        internal static IntPtr FindRunningWindow(Game game, int session)
+        {
+            var paths = new[] { game.Settings.Executable }.Concat(game.Settings.LaunchProfiles.Select(profile => profile.Executable))
+                .Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(path => path, path => game.Id, StringComparer.OrdinalIgnoreCase);
+            var known = Read(session, paths).Where(item => item.GameId == game.Id)
+                .ToLookup(item => item.ProcessId, item => item.StartedUtcTicks);
+            string directory = null;
+            if (game.SteamId != 0)
+            {
+                var location = SteamLocation.Read(SteamLocation.PreferencesFile);
+                string client = location.FindClient();
+                if (client != null || !string.IsNullOrWhiteSpace(location.LibraryFolder))
+                {
+                    var installed = SteamLibrary.ScanInstalled(client, location.LibraryFolder);
+                    directory = installed.Titles.FirstOrDefault(title => title.AppId == game.SteamId)?.Directory;
+                    if (directory != null) directory = directory.TrimEnd('\\') + "\\";
+                }
+            }
+
+            IntPtr steamWindow = IntPtr.Zero;
+            var processes = Process.GetProcesses();
+            try
+            {
+                foreach (var process in processes)
+                {
+                    try
+                    {
+                        if (process.SessionId != session || process.MainWindowHandle == IntPtr.Zero) continue;
+                        if (known.Contains(process.Id) &&
+                            known[process.Id].Contains(process.StartTime.ToUniversalTime().Ticks))
+                            return process.MainWindowHandle;
+                        if (directory != null && steamWindow == IntPtr.Zero &&
+                            ExecutablePath(process.Id)?.StartsWith(directory, StringComparison.OrdinalIgnoreCase) == true)
+                            steamWindow = process.MainWindowHandle;
+                    }
+                    catch (InvalidOperationException) { }
+                    catch (Win32Exception) { }
+                }
+            }
+            finally { foreach (var process in processes) process.Dispose(); }
+            return steamWindow;
+        }
+
+        internal static bool BringForward(IntPtr window)
+        {
+            if (window == IntPtr.Zero) return false;
+            if (IsIconic(window)) ShowWindowAsync(window, 9);
+            return SetForegroundWindow(window);
         }
     }
 }

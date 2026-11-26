@@ -28,10 +28,12 @@ namespace GameShelf
         {
             internal string Id;
             internal Button Source;
-            internal bool Ready;
+            internal bool Ready, FromPins;
             internal Point Anchor, Pointer, LastPosition;
             internal Size Size;
             internal double LastScroll = double.NaN;
+            internal double LastPinScroll = double.NaN;
+            internal PinDragLayout Pins;
             internal string[] Original, Projected;
             internal Dictionary<string, int> BaseIndices;
             internal Rect[] Slots;
@@ -85,7 +87,8 @@ namespace GameShelf
             if (layer == null || tile.ActualWidth <= 0 || tile.ActualHeight <= 0) return false;
             TileHover.SetDragging(tile, true);
             TileLaunchCue.Clear(tile);
-            Covers.RenderTransform = Transform.Identity;
+            bool fromPins = ReferenceEquals(tile.Parent, Pinned);
+            if (!fromPins) Covers.RenderTransform = Transform.Identity;
             string[] order = visibleIds.ToArray();
             var slots = visible.Select(card => new Rect(LayoutInformation.GetLayoutSlot(card).TopLeft, card.RenderSize)).ToArray();
             var size = tile.RenderSize;
@@ -100,7 +103,8 @@ namespace GameShelf
 
             var drag = new TileDrag {
                 Id = id, Source = tile, Anchor = Page.TranslatePoint(start, tile), Pointer = start, Size = size,
-                Original = order, Projected = order, Slots = slots, Layer = layer,
+                Original = order, Projected = order, Slots = slots, Layer = layer, FromPins = fromPins,
+                Pins = new PinDragLayout(Pinned.Children.OfType<Button>().ToArray(), id),
                 BaseIndices = order.Select((key, index) => new { key, index }).ToDictionary(pair => pair.key, pair => pair.index),
                 Preview = new DragAdorner(Page, image, (Brush)FindResource("AppAccentText"), preferences.Appearance.TileCorner)
             };
@@ -129,10 +133,9 @@ namespace GameShelf
 
         private Rect PinViewport()
         {
-            if (!PinnedRail.IsVisible) return Rect.Empty;
-            Rect zone = new Rect(PinnedRail.TranslatePoint(new Point(), Page), PinnedRail.RenderSize);
-            if (zone.Width > 8 && zone.Height > 8) zone.Inflate(-4, -4);
-            return zone;
+            if (!PinnedScroll.IsVisible || PinnedScroll.ViewportWidth <= 0 || PinnedScroll.ViewportHeight <= 0) return Rect.Empty;
+            return new Rect(PinnedScroll.TranslatePoint(new Point(), Page),
+                new Size(PinnedScroll.ViewportWidth, PinnedScroll.ViewportHeight));
         }
 
         private static int FindSlot(Rect[] slots, Point point)
@@ -156,8 +159,8 @@ namespace GameShelf
         private DropPosition FindDestination(TileDrag drag, Point pointer, Rect viewport)
         {
             if (drag.Source.DataContext is Game && PinViewport().Contains(pointer))
-                return new DropPosition { Kind = DropKind.Pin, Label = preferences.Pins.Contains(drag.Id) ? "Already pinned" : "Pin to sidebar" };
-            if (preferences.Sort != 2 || !viewport.Contains(pointer) || drag.Slots.Length < 2) return null;
+                return FindPinDestination(drag.Pins, Page.TranslatePoint(pointer, Pinned).Y);
+            if (drag.FromPins || preferences.Sort != 2 || !viewport.Contains(pointer) || drag.Slots.Length < 2) return null;
             Point point = Page.TranslatePoint(pointer, Covers);
             int index = FindSlot(drag.Slots, point);
             string target = drag.Projected[index];
@@ -189,9 +192,11 @@ namespace GameShelf
         {
             TileDrag drag = tileDrag;
             if (drag == null || !drag.Ready) return;
-            if (drag.LastPosition == pointer && Math.Abs(drag.LastScroll - LibraryScroll.VerticalOffset) < .1) return;
+            if (drag.LastPosition == pointer && Math.Abs(drag.LastScroll - LibraryScroll.VerticalOffset) < .1 &&
+                Math.Abs(drag.LastPinScroll - PinnedScroll.VerticalOffset) < .1) return;
             drag.LastPosition = pointer;
             drag.LastScroll = LibraryScroll.VerticalOffset;
+            drag.LastPinScroll = PinnedScroll.VerticalOffset;
             Rect viewport = DragViewport();
             DropPosition target = FindDestination(drag, pointer, viewport);
             if (target != null && target.Kind == DropKind.Reorder && drag.Insertion != null &&
@@ -216,14 +221,15 @@ namespace GameShelf
             Rect guide = Rect.Empty;
             Rect clip = viewport;
             bool emphasize = false;
-            drag.Source.Opacity = drag.Insertion == null ? .36 : 0;
+            bool pinTarget = target?.Kind == DropKind.Pin;
+            ProjectPins(drag.Pins, pinTarget ? target.Slot : (int?)null, true);
+            drag.Source.Opacity = drag.Insertion != null || (pinTarget && drag.FromPins) ? 0 : .36;
             if (target != null)
             {
                 if (target.Kind == DropKind.Pin)
                 {
-                    clip = new Rect(new Point(), Page.RenderSize);
-                    guide = PinViewport();
-                    emphasize = true;
+                    clip = PinViewport();
+                    guide = PinGuide(drag.Pins, target.Slot, clip);
                 }
                 else
                 {
@@ -290,13 +296,25 @@ namespace GameShelf
             drag.FrameTime = time;
             Point pointer = drag.Pointer;
             Rect viewport = DragViewport();
-            if (viewport.Contains(pointer))
-            {
-                double top = pointer.Y - viewport.Top, bottom = viewport.Bottom - pointer.Y;
-                if (top < 35) LibraryScroll.ScrollToVerticalOffset(LibraryScroll.VerticalOffset - (35 - top) * elapsed * .021);
-                else if (bottom < 35) LibraryScroll.ScrollToVerticalOffset(LibraryScroll.VerticalOffset + (35 - bottom) * elapsed * .021);
-            }
+            Rect pinViewport = PinViewport();
+            if (pinViewport.Contains(pointer) && drag.Source.DataContext is Game)
+                ScrollDuringDrag(PinnedScroll, pinViewport, pointer, elapsed);
+            else if (!drag.FromPins && viewport.Contains(pointer))
+                ScrollDuringDrag(LibraryScroll, viewport, pointer, elapsed);
             UpdateTileDrag(pointer);
+        }
+
+        private static void ScrollDuringDrag(ScrollViewer scroll, Rect viewport, Point pointer, double elapsed)
+        {
+            if (scroll.ScrollableHeight <= 0) return;
+            double edge = Math.Min(35, viewport.Height / 2);
+            double top = pointer.Y - viewport.Top, bottom = viewport.Bottom - pointer.Y;
+            if (top < edge)
+            {
+                scroll.ScrollToVerticalOffset(scroll.VerticalOffset - (edge - top) * elapsed * .021);
+            }
+            else if (bottom < edge)
+                scroll.ScrollToVerticalOffset(scroll.VerticalOffset + (edge - bottom) * elapsed * .021);
         }
 
         private void ReleaseTilePointer(object sender, MouseButtonEventArgs e)
@@ -326,6 +344,7 @@ namespace GameShelf
             TileHover.SetDragging(drag.Source, false);
 
             DropPosition target = drop ? drag.Destination : null;
+            ProjectPins(drag.Pins, null, target?.Kind != DropKind.Pin);
             if (target == null)
             {
                 ProjectOrder(drag, drag.Original, SameCoordinateViewport(DragViewport()));
@@ -333,7 +352,7 @@ namespace GameShelf
             }
             if (target.Kind == DropKind.Pin)
             {
-                PinFromDrag(drag.Id);
+                PinFromDrag(drag.Id, target.Slot);
                 return;
             }
 
@@ -374,18 +393,6 @@ namespace GameShelf
             visible.Insert(to, drag.Source);
             visibleIds.RemoveAt(from);
             visibleIds.Insert(to, drag.Id);
-        }
-
-        private void PinFromDrag(string id)
-        {
-            if (preferences.Pins.Contains(id)) return;
-            var apps = Games.ToDictionary(app => app.Id);
-            if (!apps.ContainsKey(id)) return;
-            preferences.Pins.Add(id);
-            RenderPins(apps);
-            QueuePreferences();
-            Announce("Pinned " + apps[id].Name + ".");
-            PlayUiSound(UiCue.Drop);
         }
 
         private sealed class DragAdorner : Adorner

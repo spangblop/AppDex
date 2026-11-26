@@ -38,7 +38,7 @@ namespace GameShelf
 
         private void RenderArrangement(Dictionary<string, Game> all)
         {
-            string[] terms = SearchBox.Text.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+            string[] terms = GameSearch.Tokens(SearchBox.Text);
             string source = Sources[Math.Max(0, SourcePicker.SelectedIndex)];
             var group = ActiveGroup;
             var scope = group == null ? all.Values : group.Apps.Select(id => all[id]);
@@ -165,6 +165,7 @@ namespace GameShelf
                 button.Margin = new Thickness(0, 0, 0, 7);
                 button.Padding = new Thickness(0);
                 button.Height = preferences.Appearance.PinHeight;
+                button.RenderTransform = new TranslateTransform();
                 button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
                 button.VerticalContentAlignment = VerticalAlignment.Stretch;
                 var artwork = new Image { Stretch = preferences.Appearance.Crop, Opacity = preferences.Appearance.PinArtwork };
@@ -183,6 +184,7 @@ namespace GameShelf
                 var face = new Grid { ClipToBounds = true, Children = { artwork, shade, caption } };
                 button.Content = new Grid { Children = { face, new TileLaunchCue() } };
                 button.Click += delegate { Launch(app, button); };
+                RegisterDragTarget(button, app.Id);
                 AttachGameHoverSound(button);
                 AttachOptions(button, () => AppOptions(app));
                 var launchDescription = new System.Windows.Data.Binding("AccessibleName");
@@ -192,7 +194,7 @@ namespace GameShelf
             }
             if (preferences.Pins.Count == 0)
             {
-                var hint = new TextBlock { Text = "Right-click an app to pin it.", FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                var hint = new TextBlock { Text = "Drag an app here or right-click it to pin it.", FontSize = 12, TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(6, 1, 0, 0) };
                 hint.SetResourceReference(ForegroundProperty, "AppMuted");
                 Pinned.Children.Add(hint);
@@ -274,7 +276,7 @@ namespace GameShelf
         private MenuChoice[] AppOptions(Game app)
         {
             var items = new List<MenuChoice> {
-                new MenuChoice("Open app", () => Launch(app)),
+                new MenuChoice(app.Playing ? "Resume app" : "Open app", () => Launch(app)),
                 new MenuChoice("Edit app…", () => Edit(app)),
                 new MenuChoice(preferences.Pins.Contains(app.Id) ? "Unpin app" : "Pin app", () =>
                 {
@@ -282,6 +284,8 @@ namespace GameShelf
                     CommitPreferences();
                 })
             };
+            items.InsertRange(1, app.Settings.LaunchProfiles.Select(profile =>
+                new MenuChoice("Launch profile: " + profile.Name, () => LaunchChoice(app, profile))));
             if (preferences.Sort == 2 && preferences.GroupOf(app.Id) != null)
                 items.Add(new MenuChoice("Move to library", () => { preferences.Ungroup(app.Id); CommitPreferences(); }));
             items.Add(new MenuChoice("Remove from AppDex…", () => RequestRemoval(app)));

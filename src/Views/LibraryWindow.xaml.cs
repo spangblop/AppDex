@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
@@ -15,9 +16,9 @@ using System.Windows.Threading;
 
 [assembly: AssemblyTitle("AppDex")]
 [assembly: AssemblyProduct("AppDex")]
-[assembly: AssemblyVersion("0.3.5.0")]
-[assembly: AssemblyFileVersion("0.3.5.0")]
-[assembly: AssemblyInformationalVersion("Beta 0.3.5")]
+[assembly: AssemblyVersion("0.5.5.0")]
+[assembly: AssemblyFileVersion("0.5.5.0")]
+[assembly: AssemblyInformationalVersion("Beta 0.5.5")]
 
 namespace GameShelf
 {
@@ -35,6 +36,9 @@ namespace GameShelf
         internal event Action GameShortcutsChanged;
         internal event Action<string> HiddenLaunchError;
         internal Func<Game, int, int, string> ValidateGameShortcut;
+        internal Func<Game, GameSettings, string> ValidateGameShortcuts;
+        internal Action<Game, LaunchProfile> LaunchGameProfile = Game.LaunchUsingProfile;
+        internal Func<Game, Task<bool>> ResumeGame;
         internal Func<int, int, string> RegisterQuickShortcut;
         internal int QuickLaunchModifiers => preferences.QuickLaunchModifiers ?? LaunchHotkeys.DefaultModifiers;
         internal int QuickLaunchKey => preferences.QuickLaunchKey ?? LaunchHotkeys.DefaultKey;
@@ -145,6 +149,7 @@ namespace GameShelf
                 settings.HighlightChanged += HighlightAppearance;
                 settings.LibrarySyncChanged += UpdateLibrarySync;
                 settings.RegisterQuickShortcut = RegisterQuickShortcut;
+                settings.ShortcutManagerRequested += ShowShortcutManager;
                 settings.UiSoundsChanged += delegate
                 {
                     if (!preferences.UiSoundsEnabled) uiSounds.Stop();
@@ -193,12 +198,15 @@ namespace GameShelf
             Edit((Game)((Button)sender).DataContext);
         }
 
-        private void Edit(Game game)
+        private void Edit(Game game) => EditProfile(game, null, false);
+
+        private void EditProfile(Game game, LaunchProfile profile, bool focusShortcut)
         {
             if (catalog.LoadError != null) { Announce(catalog.LoadError); return; }
             var editor = new AppEditorPane(catalog, game);
             editor.ValidateShortcut = ValidateGameShortcut;
-            editor.Closed += ClosePanel;
+            editor.ValidateShortcuts = ValidateGameShortcuts;
+            editor.Closed += focusShortcut ? (Action)ShowShortcutManager : ClosePanel;
             if (game != null) editor.ResetActivity += () => ResetActivityRequested?.Invoke(game);
             editor.Completed += delegate
             {
@@ -206,6 +214,7 @@ namespace GameShelf
                 if (editor.Removed)
                 {
                     AfterRemoval(game);
+                    if (focusShortcut) ShowShortcutManager();
                     return;
                 }
                 if (game == null)
@@ -216,8 +225,10 @@ namespace GameShelf
                 CommitPreferences();
                 Announce((game == null ? "Added " : "Saved changes to ") + editor.Result.Name + ".");
                 GameShortcutsChanged?.Invoke();
+                if (focusShortcut) ShowShortcutManager();
             };
             ShowPanel(game == null ? "Add app" : "Edit app", editor);
+            if (focusShortcut) Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => editor.FocusShortcut(profile)));
         }
 
         private void SearchKeys(object sender, KeyEventArgs e)
@@ -300,34 +311,48 @@ namespace GameShelf
             Launch((Game)tile.DataContext, tile);
         }
 
-        internal bool ShortcutNeedsLibrary(Game game)
+        internal bool ShortcutNeedsLibrary(Game game, LaunchProfile profile)
         {
-            return preferences.ConfirmLaunch || (game.IsInstalled == false && !game.Playing);
+            return preferences.ConfirmLaunch || (profile?.Executable == null && game.IsInstalled == false && !game.Playing);
         }
 
-        internal void LaunchFromShortcut(Game game)
+        internal void LaunchFromShortcut(Game game) => LaunchFromShortcutProfile(game, null);
+
+        internal void LaunchFromShortcutProfile(Game game, LaunchProfile profile)
         {
             if (QuitLayer.Visibility == Visibility.Visible || !Games.Contains(game)) return;
-            if (preferences.ConfirmLaunch && panelOpen)
+            if (!game.Playing && preferences.ConfirmLaunch && panelOpen)
             {
                 AnnounceError("Close the current panel before launching with a shortcut.");
                 return;
             }
-            Launch(game);
+            LaunchChoice(game, profile);
         }
 
-        private void Launch(Game game, Button tile = null)
+        private void Launch(Game game, Button tile = null) => LaunchChoice(game, null, tile);
+
+        private async void LaunchChoice(Game game, LaunchProfile profile, Button tile = null)
         {
             if (pending.ContainsKey(game)) return;
-            if (!preferences.ConfirmLaunch)
+            if (game.Playing && ResumeGame != null)
             {
-                LaunchNow(game, tile);
+                try
+                {
+                    if (await ResumeGame(game)) Announce("Resumed " + game.Name + ".");
+                    else AnnounceLaunchError("Couldn't bring " + game.Name + " to the front.");
+                }
+                catch (Exception error) { AnnounceLaunchError("Couldn't resume " + game.Name + ". " + error.Message); }
                 return;
             }
-            if (!CanLaunchInstalledGame(game)) return;
+            if (!preferences.ConfirmLaunch)
+            {
+                LaunchNow(game, profile, tile);
+                return;
+            }
+            if (!CanLaunchInstalledGame(game, profile)) return;
 
             TileLaunchCue.Play(tile, preferences.Appearance);
-            var question = new TextBlock { Text = "Launch " + game.Name + "?", TextWrapping = TextWrapping.Wrap,
+            var question = new TextBlock { Text = "Launch " + game.Name + (profile == null ? "" : " (" + profile.Name + ")") + "?", TextWrapping = TextWrapping.Wrap,
                 FontSize = 18, Margin = new Thickness(0, 0, 0, 14) };
             var cancel = SmallButton("Cancel");
             cancel.Margin = new Thickness(0, 0, 8, 0);
@@ -342,14 +367,14 @@ namespace GameShelf
             {
                 if (!panelOpen || !ReferenceEquals(DrawerContent.Content, content)) return;
                 ClosePanel();
-                LaunchNow(game);
+                LaunchNow(game, profile);
             };
             ShowPanel("Confirm launch", content, cancel);
         }
 
-        private void LaunchNow(Game game, Button tile = null)
+        private void LaunchNow(Game game, LaunchProfile profile, Button tile = null)
         {
-            if (!CanLaunchInstalledGame(game)) return;
+            if (!CanLaunchInstalledGame(game, profile)) return;
             long previous;
             long now = clock.ElapsedMilliseconds;
             if (pending.ContainsKey(game) || (lastClick.TryGetValue(game, out previous) && now - previous < 2000))
@@ -367,7 +392,11 @@ namespace GameShelf
             var thread = new Thread(delegate()
             {
                 Exception failure = null;
-                try { launch(game); }
+                try
+                {
+                    if (profile == null) launch(game);
+                    else LaunchGameProfile(game, profile);
+                }
                 catch (Exception error)
                 {
                     failure = error;
@@ -396,9 +425,9 @@ namespace GameShelf
             thread.Start();
         }
 
-        private bool CanLaunchInstalledGame(Game game)
+        private bool CanLaunchInstalledGame(Game game, LaunchProfile profile)
         {
-            if (game.IsInstalled != false || game.Playing) return true;
+            if (profile?.Executable != null || game.IsInstalled != false || game.Playing) return true;
             AnnounceError(game.Name + " isn't installed. Install it through " + game.Source + " to play.");
             return false;
         }
@@ -445,6 +474,12 @@ namespace GameShelf
         {
             Announce(message);
             ShowErrorToast(message);
+        }
+
+        private void AnnounceLaunchError(string message)
+        {
+            if (!IsVisible || WindowState == WindowState.Minimized) HiddenLaunchError?.Invoke(message);
+            AnnounceError(message);
         }
 
         private void PlayUiSound(UiCue cue)

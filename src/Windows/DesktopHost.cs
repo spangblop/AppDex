@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Principal;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
@@ -54,6 +55,7 @@ namespace GameShelf
             using (var tray = new Forms.NotifyIcon { Icon = icon, Text = AppBuild.Name + " · Tracking app activity", ContextMenuStrip = menu })
             using (var hotkeys = new LaunchHotkeys(ShowQuickLaunch, LaunchFromShortcut,
                 window.QuickLaunchModifiers, window.QuickLaunchKey))
+            using (var controller = new ControllerInput(ActiveControllerWindow, HandleController))
             {
                 Action quit = delegate
                 {
@@ -76,6 +78,9 @@ namespace GameShelf
                 window.QuitRequested += quit;
                 window.ResetActivityRequested += ResetGameActivity;
                 window.ValidateGameShortcut = (game, modifiers, key) => hotkeys.Validate(window.Games, game, modifiers, key);
+                window.ValidateGameShortcuts = (game, draft) => hotkeys.ValidateDraft(window.Games, game, draft);
+                window.ResumeGame = ResumeRunningGame;
+                hotkeys.LaunchProfile = LaunchProfileFromShortcut;
                 hotkeys.Capture = window.CaptureRegisteredShortcut;
                 Action refreshShortcuts = delegate
                 {
@@ -138,12 +143,34 @@ namespace GameShelf
             quickLaunch.Show();
         }
 
-        private void LaunchFromShortcut(Game game)
+        private Window ActiveControllerWindow()
+        {
+            if (exiting) return null;
+            if (quickLaunch?.IsActive == true) return quickLaunch;
+            return window.IsActive ? window : null;
+        }
+
+        private void HandleController(Window active, ControllerCommand command)
+        {
+            if (active is QuickLaunchWindow quick) quick.HandleController(command);
+            else if (command == ControllerCommand.Search) ShowQuickLaunch();
+            else window.HandleController(command);
+        }
+
+        private async Task<bool> ResumeRunningGame(Game game)
+        {
+            IntPtr target = await Task.Run(() => GameProcesses.FindRunningWindow(game, session));
+            return !exiting && GameProcesses.BringForward(target);
+        }
+
+        private void LaunchFromShortcut(Game game) => LaunchProfileFromShortcut(game, null);
+
+        private void LaunchProfileFromShortcut(Game game, LaunchProfile profile)
         {
             if (exiting) return;
             quickLaunch?.Close();
-            if (window.ShortcutNeedsLibrary(game)) ShowLibrary();
-            window.LaunchFromShortcut(game);
+            if (!game.Playing && window.ShortcutNeedsLibrary(game, profile)) ShowLibrary();
+            window.LaunchFromShortcutProfile(game, profile);
         }
 
         private void Record(bool flush)
@@ -172,9 +199,11 @@ namespace GameShelf
             if (book == null) book = ActivityBook.Load(file);
             var library = window.Games.ToArray();
             var ids = new System.Collections.Generic.HashSet<string>(library.Select(game => game.Id));
-            var custom = library.Where(g => g.Settings.Executable != null)
-                .GroupBy(g => g.Settings.Executable, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(g => g.Key, g => g.First().Id, StringComparer.OrdinalIgnoreCase);
+            var custom = library.SelectMany(game => new[] { game.Settings.Executable }.Concat(
+                    game.Settings.LaunchProfiles.Select(profile => profile.Executable))
+                .Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => new { Path = path, game.Id }))
+                .GroupBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().Id, StringComparer.OrdinalIgnoreCase);
             var sample = GameProcesses.Read(session, custom).Where(game => ids.Contains(game.GameId))
                 .Concat(SteamLibrary.Running(library, session)).ToArray();
             long now = GameProcesses.AwakeTicks();

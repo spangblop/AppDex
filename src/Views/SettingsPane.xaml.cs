@@ -16,6 +16,7 @@ namespace GameShelf
         internal event Action LibrarySyncChanged;
         internal event Action UiSoundsChanged;
         internal Func<int, int, string> RegisterQuickShortcut;
+        internal event Action ShortcutManagerRequested;
 
         internal SettingsPane(StartupRegistration startup, LibraryPreferences preferences, Action save, Action apply, string dataDirectory)
         {
@@ -46,6 +47,18 @@ namespace GameShelf
         }
 
         internal void CommitAppearance() { editor.Commit(); }
+
+        internal void FocusQuickShortcut()
+        {
+            QuickModifiers.BringIntoView();
+            QuickModifiers.Focus();
+        }
+
+        private void OpenShortcutManager(object sender, RoutedEventArgs e)
+        {
+            editor.Commit();
+            ShortcutManagerRequested?.Invoke();
+        }
 
         private void ChangeQuickModifiers(object sender, RoutedEventArgs e)
         {

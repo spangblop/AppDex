@@ -1,6 +1,8 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -23,19 +25,23 @@ namespace GameShelf
         internal event Action Closed;
         internal event Action ResetActivity;
         internal Func<Game, int, int, string> ValidateShortcut;
+        internal Func<Game, GameSettings, string> ValidateShortcuts;
         private bool recordingShortcut;
+        private bool switchingProfile;
+        private LaunchProfile selectedProfile;
 
         internal AppEditorPane(GameCatalog catalog, Game game)
         {
             this.catalog = catalog;
             editedApp = game;
             draft = game == null ? new GameSettings() : game.Settings.Copy();
+            draft.Profiles = draft.Profiles ?? new List<LaunchProfile>();
             InitializeComponent();
             SaveButton.Content = game == null ? "Add app" : "Save changes";
             GameName.Text = draft.Name ?? "";
+            SearchAliases.Text = draft.Aliases ?? "";
             Executable.Text = draft.Executable ?? "";
-            Arguments.Text = draft.Arguments ?? "";
-            UpdateShortcutLabel();
+            SelectProfile(0);
             ExecutableFields.Visibility = game == null || game.Custom ? Visibility.Visible : Visibility.Collapsed;
             defaultPicture = game == null ? Game.CustomBackdrop() : game.DefaultArtwork;
             PicturePreview.ImageSource = game == null ? defaultPicture : game.Artwork;
@@ -164,9 +170,11 @@ namespace GameShelf
 
         private void UpdateShortcutLabel()
         {
+            int key = selectedProfile?.ShortcutKey ?? draft.ShortcutKey;
+            int modifiers = selectedProfile?.ShortcutModifiers ?? draft.ShortcutModifiers;
             RecordShortcut.Content = recordingShortcut ? "Press your shortcut…" :
-                draft.ShortcutKey == 0 ? "Record shortcut…" : LaunchHotkeys.Describe(draft.ShortcutModifiers, draft.ShortcutKey);
-            ClearShortcut.IsEnabled = draft.ShortcutKey != 0;
+                key == 0 ? "Record shortcut…" : LaunchHotkeys.Describe(modifiers, key);
+            ClearShortcut.IsEnabled = key != 0;
             ShortcutHint.Visibility = recordingShortcut ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -186,7 +194,7 @@ namespace GameShelf
 
         private void RemoveShortcut(object sender, RoutedEventArgs e)
         {
-            draft.ShortcutModifiers = draft.ShortcutKey = 0;
+            SetShortcut(0, 0);
             CancelShortcutCapture(null, null);
         }
 
@@ -220,20 +228,104 @@ namespace GameShelf
                     "Use a modifier with this key, or choose a function key.";
                 return true;
             }
-            draft.ShortcutModifiers = modifiers;
-            draft.ShortcutKey = key;
+            SetShortcut(modifiers, key);
             CancelShortcutCapture(null, null);
             return true;
+        }
+
+        private void SetShortcut(int modifiers, int key)
+        {
+            if (selectedProfile == null)
+            {
+                draft.ShortcutModifiers = modifiers;
+                draft.ShortcutKey = key;
+            }
+            else
+            {
+                selectedProfile.ShortcutModifiers = modifiers;
+                selectedProfile.ShortcutKey = key;
+            }
+        }
+
+        private void SaveProfileFields()
+        {
+            if (selectedProfile == null) draft.Arguments = Arguments.Text;
+            else
+            {
+                selectedProfile.Name = ProfileName.Text.Trim();
+                selectedProfile.Executable = ProfileExecutable.Text;
+                selectedProfile.Arguments = Arguments.Text;
+            }
+        }
+
+        private void SelectProfile(int index)
+        {
+            switchingProfile = true;
+            ProfilePicker.ItemsSource = new[] { "Default" }.Concat(draft.Profiles.Select(profile =>
+                string.IsNullOrWhiteSpace(profile.Name) ? "(Untitled profile)" : profile.Name)).ToArray();
+            ProfilePicker.SelectedIndex = index;
+            selectedProfile = index > 0 ? draft.Profiles[index - 1] : null;
+            ProfileFields.Visibility = selectedProfile != null ? Visibility.Visible : Visibility.Collapsed;
+            RemoveProfileButton.IsEnabled = selectedProfile != null;
+            ProfileName.Text = selectedProfile?.Name ?? "";
+            ProfileExecutable.Text = selectedProfile?.Executable ?? "";
+            Arguments.Text = selectedProfile == null ? draft.Arguments ?? "" : selectedProfile.Arguments ?? "";
+            CancelShortcutCapture(null, null);
+            switchingProfile = false;
+        }
+
+        private void ChangeProfile(object sender, RoutedEventArgs e)
+        {
+            if (switchingProfile || ProfilePicker.SelectedIndex < 0) return;
+            SaveProfileFields();
+            SelectProfile(ProfilePicker.SelectedIndex);
+        }
+
+        private void AddProfile(object sender, RoutedEventArgs e)
+        {
+            SaveProfileFields();
+            int number = 1;
+            while (draft.Profiles.Any(profile => string.Equals(profile.Name, "Profile " + number, StringComparison.OrdinalIgnoreCase))) number++;
+            draft.Profiles.Add(new LaunchProfile { Name = "Profile " + number, Arguments = draft.Arguments });
+            SelectProfile(draft.Profiles.Count);
+            ProfileName.Focus();
+            ProfileName.SelectAll();
+        }
+
+        private void RemoveProfile(object sender, RoutedEventArgs e)
+        {
+            if (selectedProfile == null) return;
+            draft.Profiles.Remove(selectedProfile);
+            SelectProfile(0);
+        }
+
+        private void BrowseProfileExecutable(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog { Title = "Choose profile executable", Filter = "Windows executables (*.exe)|*.exe" };
+            if (dialog.ShowDialog(Window.GetWindow(this)) == true) ProfileExecutable.Text = dialog.FileName;
+        }
+
+        internal void FocusShortcut(LaunchProfile profile)
+        {
+            if (profile != null)
+            {
+                int index = draft.Profiles.FindIndex(candidate => candidate.Name == profile.Name);
+                if (index >= 0) SelectProfile(index + 1);
+            }
+            RecordShortcut.BringIntoView();
+            RecordShortcut.Focus();
         }
 
         private void OnSave(object sender, RoutedEventArgs e)
         {
             draft.Name = GameName.Text;
+            draft.Aliases = SearchAliases.Text;
             draft.Executable = Executable.Text;
-            draft.Arguments = Arguments.Text;
+            SaveProfileFields();
             try
             {
-                string shortcutError = ValidateShortcut?.Invoke(editedApp, draft.ShortcutModifiers, draft.ShortcutKey);
+                string shortcutError = ValidateShortcuts != null ? ValidateShortcuts(editedApp, draft) :
+                    ValidateShortcut?.Invoke(editedApp, draft.ShortcutModifiers, draft.ShortcutKey);
                 if (shortcutError != null) { ShowError(shortcutError); return; }
                 Result = catalog.Save(draft, newPicture);
                 if (Completed != null) Completed();

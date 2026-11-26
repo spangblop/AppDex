@@ -19,10 +19,19 @@ namespace GameShelf
         private readonly HwndSource source;
         private readonly Action open;
         private readonly Action<Game> launch;
-        private readonly Dictionary<int, Game> games = new Dictionary<int, Game>();
+        private readonly Dictionary<int, (Game Game, LaunchProfile Profile, int Modifiers, int Key)> games =
+            new Dictionary<int, (Game, LaunchProfile, int, int)>();
         private int quickId = FirstQuickId;
         private int quickModifiers, quickKey;
         internal Func<int, int, bool> Capture;
+        internal Action<Game, LaunchProfile> LaunchProfile;
+
+        private static IEnumerable<(LaunchProfile Profile, int Modifiers, int Key)> Bindings(GameSettings settings)
+        {
+            if (settings.ShortcutKey != 0) yield return (null, settings.ShortcutModifiers, settings.ShortcutKey);
+            foreach (var profile in settings.LaunchProfiles.Where(profile => profile.ShortcutKey != 0))
+                yield return (profile, profile.ShortcutModifiers, profile.ShortcutKey);
+        }
 
         internal LaunchHotkeys(Action open, Action<Game> launch) : this(open, launch, DefaultModifiers, DefaultKey) { }
 
@@ -62,8 +71,8 @@ namespace GameShelf
         internal string SetQuickLaunch(IEnumerable<Game> library, int modifiers, int key)
         {
             if (QuickLaunchRegistered && quickModifiers == modifiers && quickKey == key) return null;
-            if (modifiers != 0 && library.Any(game => game.Settings.ShortcutModifiers == modifiers &&
-                game.Settings.ShortcutKey == key)) return "That shortcut is assigned to a game.";
+            if (modifiers != 0 && library.Any(game => Bindings(game.Settings).Any(binding =>
+                binding.Modifiers == modifiers && binding.Key == key))) return "That shortcut is assigned to a game or profile.";
 
             int next = quickId == FirstQuickId ? SecondQuickId : FirstQuickId;
             if (modifiers != 0 && !Register(next, modifiers, key))
@@ -82,12 +91,24 @@ namespace GameShelf
             if (key == 0) return null;
             if (quickModifiers != 0 && modifiers == quickModifiers && key == quickKey)
                 return QuickLaunchLabel + " opens Quick Launch. Choose another shortcut.";
-            if (library.Any(game => game != current && game.Settings.ShortcutModifiers == modifiers &&
-                game.Settings.ShortcutKey == key)) return "That shortcut is assigned to another game.";
-            if (current != null && current.Settings.ShortcutModifiers == modifiers && current.Settings.ShortcutKey == key)
+            if (library.Any(game => game != current && Bindings(game.Settings).Any(binding =>
+                binding.Modifiers == modifiers && binding.Key == key))) return "That shortcut is assigned to another game or profile.";
+            if (current != null && games.Values.Any(binding => binding.Game == current && binding.Modifiers == modifiers && binding.Key == key))
                 return null;
             if (!Register(ProbeId, modifiers, key)) return "That shortcut is unavailable in Windows. Try a different one.";
             UnregisterHotKey(source.Handle, ProbeId);
+            return null;
+        }
+
+        internal string ValidateDraft(IEnumerable<Game> library, Game current, GameSettings draft)
+        {
+            var used = new HashSet<(int, int)>();
+            foreach (var binding in Bindings(draft))
+            {
+                if (!used.Add((binding.Modifiers, binding.Key))) return "Give the default launch and each profile a different shortcut.";
+                string error = Validate(library, current, binding.Modifiers, binding.Key);
+                if (error != null) return binding.Profile == null ? error : binding.Profile.Name + " — " + error;
+            }
             return null;
         }
 
@@ -96,13 +117,13 @@ namespace GameShelf
             ClearGames();
             var unavailable = new List<string>();
             int id = FirstGameId;
-            foreach (var game in library.Where(game => game.Settings.ShortcutKey != 0))
+            foreach (var game in library)
+            foreach (var binding in Bindings(game.Settings))
             {
-                var settings = game.Settings;
-                if ((quickModifiers != 0 && settings.ShortcutModifiers == quickModifiers && settings.ShortcutKey == quickKey) ||
-                    !Register(id, settings.ShortcutModifiers, settings.ShortcutKey))
-                    unavailable.Add(game.Name);
-                else games.Add(id++, game);
+                if ((quickModifiers != 0 && binding.Modifiers == quickModifiers && binding.Key == quickKey) ||
+                    !Register(id, binding.Modifiers, binding.Key))
+                    unavailable.Add(binding.Profile == null ? game.Name : game.Name + " (" + binding.Profile.Name + ")");
+                else games.Add(id++, (game, binding.Profile, binding.Modifiers, binding.Key));
             }
             return unavailable.Count == 0 ? null : "Couldn't register launch shortcuts for " + string.Join(", ", unavailable) + ".";
         }
@@ -122,11 +143,15 @@ namespace GameShelf
                 handled = true;
                 if (Capture?.Invoke(quickModifiers, quickKey) != true) open();
             }
-            else if (games.TryGetValue(id, out Game game))
+            else if (games.TryGetValue(id, out var binding))
             {
-                if (!Matches(lParam, game.Settings.ShortcutModifiers, game.Settings.ShortcutKey)) return IntPtr.Zero;
+                if (!Matches(lParam, binding.Modifiers, binding.Key)) return IntPtr.Zero;
                 handled = true;
-                if (Capture?.Invoke(game.Settings.ShortcutModifiers, game.Settings.ShortcutKey) != true) launch(game);
+                if (Capture?.Invoke(binding.Modifiers, binding.Key) != true)
+                {
+                    if (binding.Profile == null) launch(binding.Game);
+                    else LaunchProfile?.Invoke(binding.Game, binding.Profile);
+                }
             }
             return IntPtr.Zero;
         }

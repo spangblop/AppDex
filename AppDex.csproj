@@ -33,6 +33,7 @@
     <Compile Include="src\Views\LibraryWindow.xaml.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Organization.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Drag.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.PinDrag.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Panels.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Library\LibraryPreferences.cs" />
     <Compile Include="src\Windows\AppBuild.cs" />
@@ -45,6 +46,8 @@
     <Compile Include="src\Appearance\AppearanceHighlight.cs" />
     <Compile Include="src\Views\LibraryWindow.Appearance.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Sync.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.Shortcuts.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.Controller.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Appearance\ColorWheel.cs" />
     <Compile Include="src\Views\Controls\TileHover.cs" />
     <Compile Include="src\Views\Controls\TileLaunchCue.cs" />
@@ -53,6 +56,7 @@
     <Compile Include="src\Audio\HoverAudio.cs" />
     <Compile Include="src\Discovery\AppDiscovery.cs" />
     <Compile Include="src\Library\Game.cs" />
+    <Compile Include="src\Library\GameSearch.cs" />
     <Compile Include="src\Library\GameCatalog.cs" />
     <Compile Include="src\Discovery\SteamLibrary.cs" />
     <Compile Include="src\Discovery\SteamLocation.cs" />
@@ -62,6 +66,7 @@
     <Compile Include="src\Windows\GameProcesses.cs" />
     <Compile Include="src\Windows\DesktopHost.cs" />
     <Compile Include="src\Windows\LaunchHotkeys.cs" />
+    <Compile Include="src\Windows\ControllerInput.cs" />
     <Compile Include="src\Views\QuickLaunchWindow.xaml.cs"><DependentUpon>QuickLaunchWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Windows\StartupRegistration.cs" />
     <Compile Include="src\Views\SettingsPane.xaml.cs"><DependentUpon>SettingsPane.xaml</DependentUpon></Compile>
