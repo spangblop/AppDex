@@ -6,6 +6,22 @@ Windows app launcher, open source personal project that's just meant to be a qui
 
 Download the Windows ZIP from [Releases](../../releases), extract it, and open `AppDex.exe`.
 
+## Screenshots
+
+### Library
+
+An example library with pinned games and sample playtime.
+
+![AppDex library showing game covers, pins, launch counts, and total playtime](docs/screenshots/library.png)
+
+### Quick Launch
+
+![AppDex Quick Launch showing search results for Minecraft](docs/screenshots/quick-launch.png)
+
+### Appearance
+
+![AppDex Appearance settings showing artwork layout and tile sizing controls](docs/screenshots/appearance.png)
+
 ## Build from source
 
 Use Visual Studio Build Tools with MSBuild and the .NET Framework 4.8 targeting pack. From a Developer PowerShell prompt, run:
