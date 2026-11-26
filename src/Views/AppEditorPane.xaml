@@ -58,6 +58,8 @@
             <TextBox x:Name="Executable" Style="{StaticResource EditorField}" AutomationProperties.Name="App executable" HorizontalScrollBarVisibility="Hidden"/>
           </DockPanel>
         </StackPanel>
+        <Button x:Name="OpenFolderButton" Content="Open install folder" Click="OpenInstallFolder"
+            Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Margin="0,9,0,0" Visibility="Collapsed"/>
         <Label Content="App picture" Style="{StaticResource FieldLabel}" Margin="0,16,0,0"/>
         <Grid>
           <Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
@@ -87,6 +89,8 @@
             <Button DockPanel.Dock="Right" Content="Browse…" Style="{StaticResource ActionButton}" Click="BrowseProfileExecutable" Margin="8,0,0,0"/>
             <TextBox x:Name="ProfileExecutable" Style="{StaticResource EditorField}" AutomationProperties.Name="Profile executable"/>
           </DockPanel>
+          <Button x:Name="OpenProfileFolderButton" Content="Open profile folder" Click="OpenInstallFolder"
+              Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Margin="0,6,0,0" Visibility="Collapsed"/>
         </StackPanel>
         <Label Content="Launch arguments (optional)" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=Arguments}" Margin="0,12,0,0"/>
         <TextBox x:Name="Arguments" Style="{StaticResource EditorField}" AutomationProperties.Name="Launch arguments" HorizontalScrollBarVisibility="Hidden"/>

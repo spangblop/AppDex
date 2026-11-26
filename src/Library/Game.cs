@@ -234,7 +234,7 @@ namespace GameShelf
             var info = ProfileStartInfo(game, profile, out string arguments);
             if (info != null)
             {
-                using (Process.Start(info)) { }
+                StartLaunchTarget(info);
                 return;
             }
 
@@ -251,6 +251,34 @@ namespace GameShelf
             {
                 Marshal.ReleaseComObject(manager);
             }
+        }
+
+        private static void StartLaunchTarget(ProcessStartInfo info)
+        {
+            bool executablePath = info.FileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) &&
+                Path.IsPathRooted(info.FileName);
+            try
+            {
+                if (executablePath && (File.GetAttributes(info.FileName) & FileAttributes.Directory) != 0)
+                    throw new FileNotFoundException("The launch target is a folder.", info.FileName);
+                using (Process.Start(info)) { }
+            }
+            catch (IOException error) when (executablePath && (error is FileNotFoundException || error is DirectoryNotFoundException))
+            {
+                throw new FileNotFoundException("The launch executable could not be found.", info.FileName, error);
+            }
+            catch (Win32Exception error) when (executablePath && (error.NativeErrorCode == 2 || error.NativeErrorCode == 3))
+            {
+                throw new FileNotFoundException("The executable could not be found.", info.FileName, error);
+            }
+        }
+
+        internal static bool IsMissingLaunchTarget(Exception error)
+        {
+            if (error is FileNotFoundException || error is DirectoryNotFoundException) return true;
+            if (error is Win32Exception native) return native.NativeErrorCode == 2 || native.NativeErrorCode == 3;
+            return error is COMException && (error.HResult == unchecked((int)0x80070002) ||
+                error.HResult == unchecked((int)0x80070003));
         }
 
         [ComImport, Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")]

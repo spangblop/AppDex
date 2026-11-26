@@ -65,6 +65,7 @@
     <Compile Include="src\Library\Activity.cs" />
     <Compile Include="src\Windows\GameProcesses.cs" />
     <Compile Include="src\Windows\DesktopHost.cs" />
+    <Compile Include="src\Windows\InstallFolders.cs" />
     <Compile Include="src\Windows\LaunchHotkeys.cs" />
     <Compile Include="src\Windows\ControllerInput.cs" />
     <Compile Include="src\Views\QuickLaunchWindow.xaml.cs"><DependentUpon>QuickLaunchWindow.xaml</DependentUpon></Compile>

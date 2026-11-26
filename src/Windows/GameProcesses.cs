@@ -125,18 +125,8 @@ namespace GameShelf
                 .ToDictionary(path => path, path => game.Id, StringComparer.OrdinalIgnoreCase);
             var known = Read(session, paths).Where(item => item.GameId == game.Id)
                 .ToLookup(item => item.ProcessId, item => item.StartedUtcTicks);
-            string directory = null;
-            if (game.SteamId != 0)
-            {
-                var location = SteamLocation.Read(SteamLocation.PreferencesFile);
-                string client = location.FindClient();
-                if (client != null || !string.IsNullOrWhiteSpace(location.LibraryFolder))
-                {
-                    var installed = SteamLibrary.ScanInstalled(client, location.LibraryFolder);
-                    directory = installed.Titles.FirstOrDefault(title => title.AppId == game.SteamId)?.Directory;
-                    if (directory != null) directory = directory.TrimEnd('\\') + "\\";
-                }
-            }
+            string directory = game.SteamId == 0 ? null : SteamLibrary.FindInstalled(game.SteamId)?.Directory;
+            if (directory != null) directory = directory.TrimEnd('\\') + "\\";
 
             IntPtr steamWindow = IntPtr.Zero;
             var processes = Process.GetProcesses();

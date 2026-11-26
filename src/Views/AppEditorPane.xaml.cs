@@ -1,8 +1,10 @@
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -43,6 +45,8 @@ namespace GameShelf
             Executable.Text = draft.Executable ?? "";
             SelectProfile(0);
             ExecutableFields.Visibility = game == null || game.Custom ? Visibility.Visible : Visibility.Collapsed;
+            OpenFolderButton.Visibility = game == null ? Visibility.Collapsed : Visibility.Visible;
+            OpenProfileFolderButton.Visibility = OpenFolderButton.Visibility;
             defaultPicture = game == null ? Game.CustomBackdrop() : game.DefaultArtwork;
             PicturePreview.ImageSource = game == null ? defaultPicture : game.Artwork;
             ResetPicture.IsEnabled = draft.Picture != null;
@@ -121,6 +125,33 @@ namespace GameShelf
             if (dialog.ShowDialog(Window.GetWindow(this)) != true) return;
             Executable.Text = dialog.FileName;
             if (string.IsNullOrWhiteSpace(GameName.Text)) GameName.Text = Path.GetFileNameWithoutExtension(dialog.FileName);
+        }
+
+        private async void OpenInstallFolder(object sender, RoutedEventArgs e)
+        {
+            if (editedApp == null) return;
+            var profile = ReferenceEquals(sender, OpenProfileFolderButton) ? selectedProfile : null;
+            string profilePath = profile == null ? null : ProfileExecutable.Text;
+            string executable = editedApp.Custom ? Executable.Text : editedApp.Settings.Executable;
+            OpenFolderButton.IsEnabled = false;
+            OpenProfileFolderButton.IsEnabled = false;
+            try
+            {
+                string directory = await Task.Run(() => InstallFolders.Resolve(editedApp, executable, profilePath));
+                if (!IsLoaded || (profile != null && selectedProfile != profile)) return;
+                if (directory == null) { ShowError("Couldn't find the install folder for " + editedApp.Name + "."); return; }
+                using (Process.Start(new ProcessStartInfo(directory) { UseShellExecute = true })) { }
+                ErrorText.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception error)
+            {
+                if (IsLoaded && (profile == null || selectedProfile == profile)) ShowError("Couldn't open the install folder. " + error.Message);
+            }
+            finally
+            {
+                OpenFolderButton.IsEnabled = true;
+                OpenProfileFolderButton.IsEnabled = true;
+            }
         }
 
         private void BrowsePicture(object sender, RoutedEventArgs e)

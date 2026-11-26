@@ -134,6 +134,14 @@ namespace GameShelf
             return ScanInstalled(steamRoot, null);
         }
 
+        internal static SteamTitle FindInstalled(uint appId)
+        {
+            var location = SteamLocation.Read(SteamLocation.PreferencesFile);
+            string client = location.FindClient();
+            if (client == null && string.IsNullOrWhiteSpace(location.LibraryFolder)) return null;
+            return ScanInstalled(client, location.LibraryFolder).Titles.FirstOrDefault(title => title.AppId == appId);
+        }
+
         internal static SteamScan ScanInstalled(string steamRoot, string additionalLibrary)
         {
             steamRoot = steamRoot ?? additionalLibrary;

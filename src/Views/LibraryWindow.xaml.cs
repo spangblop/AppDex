@@ -16,9 +16,9 @@ using System.Windows.Threading;
 
 [assembly: AssemblyTitle("AppDex")]
 [assembly: AssemblyProduct("AppDex")]
-[assembly: AssemblyVersion("0.5.5.0")]
-[assembly: AssemblyFileVersion("0.5.5.0")]
-[assembly: AssemblyInformationalVersion("Beta 0.5.5")]
+[assembly: AssemblyVersion("0.5.6.0")]
+[assembly: AssemblyFileVersion("0.5.6.0")]
+[assembly: AssemblyInformationalVersion("Beta 0.5.6")]
 
 namespace GameShelf
 {
@@ -406,7 +406,7 @@ namespace GameShelf
                     if (!pending.TryGetValue(game, out PendingLaunch current) || !ReferenceEquals(current, attempt)) return;
                     if (failure != null)
                     {
-                        FinishLaunch(game, "Couldn't open " + game.Name + ". " + failure.Message, error: true);
+                        FinishLaunch(game, LaunchFailureMessage(game, profile, failure), error: true);
                         return;
                     }
                     attempt.RequestSent = true;
@@ -423,6 +423,15 @@ namespace GameShelf
             thread.SetApartmentState(ApartmentState.STA);
             thread.IsBackground = true;
             thread.Start();
+        }
+
+        private static string LaunchFailureMessage(Game game, LaunchProfile profile, Exception error)
+        {
+            if (!Game.IsMissingLaunchTarget(error)) return "Couldn't open " + game.Name + ". " + error.Message;
+            string target = profile == null ? game.Name : game.Name + " (" + profile.Name + ")";
+            string path = (error as FileNotFoundException)?.FileName;
+            return "Couldn't find the launch executable for " + target + ". (APPDEX-101)\n" +
+                (string.IsNullOrWhiteSpace(path) ? error.Message : path);
         }
 
         private bool CanLaunchInstalledGame(Game game, LaunchProfile profile)
