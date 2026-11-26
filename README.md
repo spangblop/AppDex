@@ -17,6 +17,12 @@ Download the Windows ZIP from [Releases](../../releases), extract it, and open `
 
 ![AppDex Quick Launch showing search results for Minecraft](docs/screenshots/quick-launch.png)
 
+### Launch profiles
+
+Keep a modded setup on the same game tile, with its own executable and shortcut.
+
+![AppDex Edit app panel showing a Modded launch profile for Beat Saber](docs/screenshots/modded-profile.png)
+
 ### Appearance
 
 ![AppDex Appearance settings showing artwork layout and tile sizing controls](docs/screenshots/appearance.png)
