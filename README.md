@@ -16,11 +16,3 @@ msbuild .\AppDex.csproj /p:Configuration=Release
 
 The executable is written to `bin\Release\AppDex.exe`.
 
-## Project folders
-
-- [Views](src/Views) for the launcher, panels, and shared controls
-- [Library](src/Library) for the catalog, preferences, and playtime
-- [Discovery](src/Discovery) for finding installed and running apps
-- [Appearance](src/Appearance) and [Audio](src/Audio) for themes, presets, and UI sounds
-- [Windows](src/Windows) for the system tray, startup, and process tracking
-- [Assets](Assets) for artwork, icons, and sound files
