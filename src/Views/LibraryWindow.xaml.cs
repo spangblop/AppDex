@@ -15,9 +15,9 @@ using System.Windows.Threading;
 
 [assembly: AssemblyTitle("AppDex")]
 [assembly: AssemblyProduct("AppDex")]
-[assembly: AssemblyVersion("0.3.0.0")]
-[assembly: AssemblyFileVersion("0.3.0.0")]
-[assembly: AssemblyInformationalVersion("Beta 0.3.0")]
+[assembly: AssemblyVersion("0.3.5.0")]
+[assembly: AssemblyFileVersion("0.3.5.0")]
+[assembly: AssemblyInformationalVersion("Beta 0.3.5")]
 
 namespace GameShelf
 {

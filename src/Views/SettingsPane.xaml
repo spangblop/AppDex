@@ -19,7 +19,7 @@
         <Setter Property="Margin" Value="5,0,0,4"/>
       </Style>
       <Style x:Key="PlaytimeWarning" TargetType="TextBlock">
-        <Setter Property="Text" Value="Playtime tracking pauses until you reopen AppDex."/>
+        <Setter Property="Text" Value="Playtime tracking and launch hotkeys will not be functional."/>
         <Setter Property="Foreground" Value="{DynamicResource AppDanger}"/>
         <Setter Property="FontSize" Value="12"/>
         <Setter Property="Margin" Value="4,7,4,2"/>
@@ -178,6 +178,8 @@
                   <ComboBoxItem Content="Fully close AppDex"/>
                 </ComboBox>
                 <TextBlock x:Name="OnCloseWarning" Style="{StaticResource PlaytimeWarning}" AutomationProperties.LiveSetting="Polite"/>
+                <CheckBox x:Name="ConfirmQuitToggle" Content="Confirm before quitting" Style="{StaticResource SettingSwitch}"
+                    Visibility="Collapsed" Checked="ChangeBehavior" Unchecked="ChangeBehavior"/>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource SettingsCard}">

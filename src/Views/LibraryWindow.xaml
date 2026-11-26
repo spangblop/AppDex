@@ -520,7 +520,7 @@
           Background="{DynamicResource AppPanel}" AutomationProperties.Name="Close AppDex confirmation">
         <StackPanel>
           <TextBlock Text="Are you sure you want to close AppDex?" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap"/>
-          <TextBlock Text="Playtime tracking will pause until you reopen AppDex." Foreground="{DynamicResource AppMuted}"
+          <TextBlock Text="Playtime tracking and launch hotkeys will not be functional." Foreground="{DynamicResource AppMuted}"
               TextWrapping="Wrap" Margin="0,8,0,16"/>
           <WrapPanel HorizontalAlignment="Right">
             <Button x:Name="KeepOpenButton" Content="Keep open" Click="KeepOpen" IsDefault="True"

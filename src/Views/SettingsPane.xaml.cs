@@ -32,6 +32,7 @@ namespace GameShelf
             QuickModifiers.SelectedIndex = Math.Max(0, Array.IndexOf(LaunchHotkeys.ModifierValues,
                 preferences.QuickLaunchModifiers ?? LaunchHotkeys.DefaultModifiers));
             OnClosePicker.SelectedIndex = preferences.QuitOnWindowClose ? 1 : 0;
+            ConfirmQuitToggle.IsChecked = !preferences.SkipQuitConfirmation;
             StartupModePicker.SelectedIndex = preferences.StartupInTray ? 1 : 0;
             UiSoundsToggle.IsChecked = preferences.UiSoundsEnabled;
             SteamSyncToggle.IsChecked = preferences.SyncSteam;
@@ -112,6 +113,7 @@ namespace GameShelf
             preferences.QuitAfterLaunch = AfterLaunchPicker.SelectedIndex == 2;
             preferences.MinimizeAfterLaunch = AfterLaunchPicker.SelectedIndex == 1;
             preferences.QuitOnWindowClose = OnClosePicker.SelectedIndex == 1;
+            preferences.SkipQuitConfirmation = ConfirmQuitToggle.IsChecked == false;
             preferences.StartupInTray = StartupModePicker.SelectedIndex == 1;
             UpdateCloseWarnings();
             save();
@@ -121,6 +123,7 @@ namespace GameShelf
         {
             AfterLaunchWarning.Visibility = preferences.QuitAfterLaunch ? Visibility.Visible : Visibility.Collapsed;
             OnCloseWarning.Visibility = preferences.QuitOnWindowClose ? Visibility.Visible : Visibility.Collapsed;
+            ConfirmQuitToggle.Visibility = OnCloseWarning.Visibility;
         }
 
         private void ChangeLibrarySync(object sender, RoutedEventArgs e)

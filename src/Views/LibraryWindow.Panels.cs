@@ -128,6 +128,11 @@ namespace GameShelf
 
         internal void ConfirmQuit()
         {
+            if (preferences.SkipQuitConfirmation)
+            {
+                QuitRequested?.Invoke();
+                return;
+            }
             if (QuitLayer.Visibility == Visibility.Visible) return;
             HighlightAppearance(AppearanceTarget.None);
             CloseMenu();
