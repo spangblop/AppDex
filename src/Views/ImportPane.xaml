@@ -1,6 +1,6 @@
 <UserControl x:Class="GameShelf.ImportPane" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Foreground="{DynamicResource AppText}" FontFamily="{DynamicResource AppBodyFont}" FontSize="{DynamicResource AppBodySize}" UseLayoutRounding="True">
   <UserControl.Resources><ResourceDictionary>
-    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls.xaml"/></ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls/Controls.xaml"/></ResourceDictionary.MergedDictionaries>
   </ResourceDictionary></UserControl.Resources>
   <Grid Margin="0">
     <Grid.RowDefinitions>

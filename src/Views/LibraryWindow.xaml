@@ -1,14 +1,14 @@
 <Window x:Class="GameShelf.LibraryWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:GameShelf"
-    Title="AppDex" Icon="Assets/AppDex.ico" Background="{DynamicResource AppBackground}"
+    Title="AppDex" Icon="pack://application:,,,/AppDex;component/Assets/AppDex.ico" Background="{DynamicResource AppBackground}"
     Foreground="{DynamicResource AppText}" FontFamily="{DynamicResource AppBodyFont}" FontSize="{DynamicResource AppBodySize}"
     Width="1110" Height="690" MinWidth="340" MinHeight="340"
     WindowStartupLocation="CenterScreen" UseLayoutRounding="True"
     TextOptions.TextFormattingMode="Display">
   <Window.Resources>
     <ResourceDictionary>
-    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls.xaml"/></ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls/Controls.xaml"/></ResourceDictionary.MergedDictionaries>
     <Style x:Key="TileLaunchSpinner" TargetType="local:LaunchSpinner">
       <Setter Property="IsActive" Value="{Binding Launching}"/>
       <Setter Property="Animated" Value="{DynamicResource AppSpinnerAnimation}"/>
@@ -418,7 +418,7 @@
                 Foreground="{DynamicResource AppAccentText}"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <Image x:Name="AppMark" Source="Assets/AppDexMark.png" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,9,0"/>
+            <Image x:Name="AppMark" Source="pack://application:,,,/AppDex;component/Assets/AppDexMark.png" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,9,0"/>
             <StackPanel>
               <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="AppTitle" Text="AppDex" FontSize="24" FontWeight="Bold" FontFamily="{DynamicResource AppDisplayFont}" VerticalAlignment="Center"/>

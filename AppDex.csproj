@@ -9,7 +9,7 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <Optimize Condition="'$(Configuration)' == 'Release' Or '$(Configuration)' == 'Preview'">true</Optimize>
     <ApplicationIcon>Assets\AppDex.ico</ApplicationIcon>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationManifest>src\Windows\app.manifest</ApplicationManifest>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Preview'">
@@ -30,44 +30,44 @@
     <Reference Include="PresentationFramework" />
     <Reference Include="UIAutomationTypes" />
     <Reference Include="UIAutomationProvider" />
-    <Compile Include="LibraryWindow.xaml.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
-    <Compile Include="LibraryWindow.Organization.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
-    <Compile Include="LibraryWindow.Drag.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
-    <Compile Include="LibraryWindow.Panels.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
-    <Compile Include="LibraryPreferences.cs" />
-    <Compile Include="AppBuild.cs" />
-    <Compile Include="PreferenceWriter.cs" />
-    <Compile Include="LibraryScrollViewer.cs" />
-    <Compile Include="AppAppearance.cs" />
-    <Compile Include="AppearanceOptions.cs" />
-    <Compile Include="PresetShareCode.cs" />
-    <Compile Include="AppearanceEditor.cs" />
-    <Compile Include="AppearanceHighlight.cs" />
-    <Compile Include="LibraryWindow.Appearance.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
-    <Compile Include="LibraryWindow.Sync.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
-    <Compile Include="ColorWheel.cs" />
-    <Compile Include="TileHover.cs" />
-    <Compile Include="TileLaunchCue.cs" />
-    <Compile Include="LaunchSpinner.cs" />
-    <Compile Include="UiSounds.cs" />
-    <Compile Include="HoverAudio.cs" />
-    <Compile Include="AppDiscovery.cs" />
-    <Compile Include="Game.cs" />
-    <Compile Include="GameCatalog.cs" />
-    <Compile Include="SteamLibrary.cs" />
-    <Compile Include="SteamLocation.cs" />
-    <Compile Include="ImportPane.xaml.cs"><DependentUpon>ImportPane.xaml</DependentUpon></Compile>
-    <Compile Include="AppEditorPane.xaml.cs"><DependentUpon>AppEditorPane.xaml</DependentUpon></Compile>
-    <Compile Include="Activity.cs" />
-    <Compile Include="GameProcesses.cs" />
-    <Compile Include="DesktopHost.cs" />
-    <Compile Include="StartupRegistration.cs" />
-    <Compile Include="SettingsPane.xaml.cs"><DependentUpon>SettingsPane.xaml</DependentUpon></Compile>
-    <Page Include="LibraryWindow.xaml"><Generator>MSBuild:Compile</Generator></Page>
-    <Page Include="AppEditorPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
-    <Page Include="Controls.xaml"><Generator>MSBuild:Compile</Generator></Page>
-    <Page Include="SettingsPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
-    <Page Include="ImportPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Compile Include="src\Views\LibraryWindow.xaml.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.Organization.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.Drag.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.Panels.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Library\LibraryPreferences.cs" />
+    <Compile Include="src\Windows\AppBuild.cs" />
+    <Compile Include="src\Library\PreferenceWriter.cs" />
+    <Compile Include="src\Views\Controls\LibraryScrollViewer.cs" />
+    <Compile Include="src\Appearance\AppAppearance.cs" />
+    <Compile Include="src\Appearance\AppearanceOptions.cs" />
+    <Compile Include="src\Appearance\PresetShareCode.cs" />
+    <Compile Include="src\Appearance\AppearanceEditor.cs" />
+    <Compile Include="src\Appearance\AppearanceHighlight.cs" />
+    <Compile Include="src\Views\LibraryWindow.Appearance.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.Sync.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Appearance\ColorWheel.cs" />
+    <Compile Include="src\Views\Controls\TileHover.cs" />
+    <Compile Include="src\Views\Controls\TileLaunchCue.cs" />
+    <Compile Include="src\Views\Controls\LaunchSpinner.cs" />
+    <Compile Include="src\Audio\UiSounds.cs" />
+    <Compile Include="src\Audio\HoverAudio.cs" />
+    <Compile Include="src\Discovery\AppDiscovery.cs" />
+    <Compile Include="src\Library\Game.cs" />
+    <Compile Include="src\Library\GameCatalog.cs" />
+    <Compile Include="src\Discovery\SteamLibrary.cs" />
+    <Compile Include="src\Discovery\SteamLocation.cs" />
+    <Compile Include="src\Views\ImportPane.xaml.cs"><DependentUpon>ImportPane.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\AppEditorPane.xaml.cs"><DependentUpon>AppEditorPane.xaml</DependentUpon></Compile>
+    <Compile Include="src\Library\Activity.cs" />
+    <Compile Include="src\Windows\GameProcesses.cs" />
+    <Compile Include="src\Windows\DesktopHost.cs" />
+    <Compile Include="src\Windows\StartupRegistration.cs" />
+    <Compile Include="src\Views\SettingsPane.xaml.cs"><DependentUpon>SettingsPane.xaml</DependentUpon></Compile>
+    <Page Include="src\Views\LibraryWindow.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="src\Views\AppEditorPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="src\Views\Controls\Controls.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="src\Views\SettingsPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
+    <Page Include="src\Views\ImportPane.xaml"><Generator>MSBuild:Compile</Generator></Page>
     <Resource Include="Assets\*.jpg" />
     <Resource Include="Assets\AppDex.ico" />
     <Resource Include="Assets\AppDexMark.png" />

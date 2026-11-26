@@ -98,7 +98,7 @@ namespace GameShelf
         {
             var resources = Application.Current.Resources;
             if (resources.MergedDictionaries.Count == 0)
-                resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/AppDex;component/Controls.xaml") });
+                resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/AppDex;component/src/Views/Controls/Controls.xaml") });
             var look = prefs.Appearance;
             resources["AppBodyFont"] = new FontFamily(look.BodyFont);
             resources["AppDisplayFont"] = new FontFamily(look.HeadingFont);

@@ -3,7 +3,7 @@
     Foreground="{DynamicResource AppText}" FontFamily="{DynamicResource AppBodyFont}" FontSize="{DynamicResource AppBodySize}" UseLayoutRounding="True">
   <UserControl.Resources>
     <ResourceDictionary>
-      <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls.xaml"/></ResourceDictionary.MergedDictionaries>
+      <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="Controls/Controls.xaml"/></ResourceDictionary.MergedDictionaries>
       <Style x:Key="SettingsCard" TargetType="Border">
         <Setter Property="Background" Value="{DynamicResource AppBackground}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource AppEdge}"/>
