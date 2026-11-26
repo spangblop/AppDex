@@ -1,6 +1,6 @@
 # AppDex
 
-Windows app launcher by Spangblop, personal project that's just meant to be a quick way to launch apps from different app stores and all over your computer. It tracks launch counts and playtime, imports installed Steam and Epic Games titles, and supports custom artwork, launch arguments, and appearance presets.
+Windows app launcher, personal project that's just meant to be a quick way to launch apps from different app stores and all over your computer. It tracks launch counts and playtime, imports installed Steam and Epic Games titles, and supports custom artwork, launch arguments, and appearance presets.
 
 ## Run the beta
 
