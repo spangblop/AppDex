@@ -20,6 +20,7 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.IO.Compression" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Windows.Forms" />
@@ -47,6 +48,7 @@
     <Compile Include="src\Views\LibraryWindow.Appearance.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Sync.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Shortcuts.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.Updates.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Controller.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Appearance\ColorWheel.cs" />
     <Compile Include="src\Views\Controls\TileHover.cs" />
@@ -65,6 +67,8 @@
     <Compile Include="src\Library\Activity.cs" />
     <Compile Include="src\Windows\GameProcesses.cs" />
     <Compile Include="src\Windows\DesktopHost.cs" />
+    <Compile Include="src\Windows\AppUpdates.cs" />
+    <Compile Include="src\Windows\AppUpdateInstaller.cs" />
     <Compile Include="src\Windows\InstallFolders.cs" />
     <Compile Include="src\Windows\LaunchHotkeys.cs" />
     <Compile Include="src\Windows\ControllerInput.cs" />

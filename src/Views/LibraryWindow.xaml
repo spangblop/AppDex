@@ -417,16 +417,22 @@
             <TextBlock x:Name="TotalPlaytime" Text="0h 00m" FontSize="15" FontWeight="Bold" TextAlignment="Right"
                 Foreground="{DynamicResource AppAccentText}"/>
           </StackPanel>
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <Image x:Name="AppMark" Source="pack://application:,,,/AppDex;component/Assets/AppDexMark.png" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,9,0"/>
+          <DockPanel VerticalAlignment="Center">
+            <Image x:Name="AppMark" DockPanel.Dock="Left" Source="pack://application:,,,/AppDex;component/Assets/AppDexMark.png" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,9,0"/>
             <StackPanel>
-              <StackPanel Orientation="Horizontal">
-                <TextBlock x:Name="AppTitle" Text="AppDex" FontSize="24" FontWeight="Bold" FontFamily="{DynamicResource AppDisplayFont}" VerticalAlignment="Center"/>
-                <TextBlock x:Name="VersionLabel" Text="Beta" FontSize="11" VerticalAlignment="Center" Margin="8,2,0,0" Foreground="{DynamicResource AppMuted}"/>
-              </StackPanel>
+              <WrapPanel>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock x:Name="AppTitle" Text="AppDex" FontSize="24" FontWeight="Bold" FontFamily="{DynamicResource AppDisplayFont}" VerticalAlignment="Center"/>
+                  <TextBlock x:Name="VersionLabel" Text="Beta" FontSize="11" VerticalAlignment="Center" Margin="8,2,0,0" Foreground="{DynamicResource AppMuted}"/>
+                </StackPanel>
+                <Button x:Name="UpdateAvailableButton" Content="Update available" Click="OpenAvailableUpdate"
+                    Style="{StaticResource ActionButton}" Visibility="Collapsed" VerticalAlignment="Center" FontSize="11"
+                    Margin="8,2,0,2" Padding="7,3" Background="{DynamicResource AppAccent}"
+                    Foreground="{DynamicResource AppAccentInk}" BorderBrush="{DynamicResource AppAccent}"/>
+              </WrapPanel>
               <TextBlock Text="by Spangblop" FontSize="11" Foreground="{DynamicResource AppMuted}"/>
             </StackPanel>
-          </StackPanel>
+          </DockPanel>
         </DockPanel>
       </Border>
       <Grid Grid.Row="1" x:Name="Body">

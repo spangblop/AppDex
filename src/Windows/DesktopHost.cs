@@ -27,6 +27,7 @@ namespace GameShelf
         [STAThread]
         public static void Main(string[] args)
         {
+            if (AppUpdateInstaller.HandleArguments(args)) return;
             bool atSignIn = args.Contains(StartupRegistration.Argument, StringComparer.OrdinalIgnoreCase);
             string name = @"Local\" + AppBuild.Name + "-" + WindowsIdentity.GetCurrent().User.Value;
             bool first;
@@ -122,6 +123,7 @@ namespace GameShelf
                 timer.Start();
                 app.MainWindow = window;
                 if (!atSignIn || !window.StartupInTray) window.Show();
+                window.StartUpdateChecks();
                 app.Run();
             }
         }
