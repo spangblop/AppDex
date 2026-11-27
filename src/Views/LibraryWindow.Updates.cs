@@ -73,6 +73,27 @@ namespace GameShelf
             install.SetResourceReference(BackgroundProperty, "AppAccent");
             install.SetResourceReference(ForegroundProperty, "AppAccentInk");
             install.SetResourceReference(BorderBrushProperty, "AppAccent");
+            var actions = new WrapPanel { Children = { later, install } };
+            var panel = new DockPanel { Children = { description, actions, status } };
+            DockPanel.SetDock(description, Dock.Top);
+            DockPanel.SetDock(actions, Dock.Bottom);
+            DockPanel.SetDock(status, Dock.Bottom);
+            if (!string.IsNullOrWhiteSpace(update.ReleaseNotes))
+            {
+                var heading = new TextBlock { Text = "Release notes", FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(0, 0, 0, 6) };
+                DockPanel.SetDock(heading, Dock.Top);
+                panel.Children.Add(heading);
+                var notes = new ScrollViewer {
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                    Margin = new Thickness(0, 0, 0, 12),
+                    Content = new TextBlock { Text = update.ReleaseNotes, TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(0, 0, 8, 0) }
+                };
+                AutomationProperties.SetName(notes, "Release notes");
+                panel.Children.Add(notes);
+            }
             install.Click += async delegate
             {
                 if (installingUpdate || QuitRequested == null) return;
@@ -95,12 +116,12 @@ namespace GameShelf
                     status.SetResourceReference(ForegroundProperty, "AppDanger");
                     status.Text = error is OperationCanceledException ? "The update timed out. Try again." :
                         "Couldn't install the update. " + error.Message;
-                    if (!ReferenceEquals(DrawerContent.Content, status.Parent)) AnnounceError(status.Text);
+                    if (!ReferenceEquals(DrawerContent.Content, panel)) AnnounceError(status.Text);
                 }
                 installingUpdate = false;
                 UpdateAvailableButton.IsEnabled = later.IsEnabled = install.IsEnabled = true;
             };
-            ShowPanel("Update available", new StackPanel { Children = { description, status, new WrapPanel { Children = { later, install } } } }, later);
+            ShowPanel("Update available", panel, later);
         }
     }
 }

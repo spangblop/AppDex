@@ -26,6 +26,7 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public List<AppearancePreset> Presets = new List<AppearancePreset>();
         [DataMember] public double Scale = 1;
         [DataMember] public string Accent = AppAppearance.DefaultAccent;
+        [DataMember(EmitDefaultValue = false)] private bool blueAccentMigrated = true;
         [DataMember(EmitDefaultValue = false)] public bool ConfirmLaunch;
         [DataMember(EmitDefaultValue = false)] public bool QuitAfterLaunch;
         [DataMember(EmitDefaultValue = false)] public bool MinimizeAfterLaunch;
@@ -59,6 +60,9 @@ namespace GameShelf
                         prefs.Style = 0;
                         if (!(prefs.Scale >= 0.75 && prefs.Scale <= 1.5)) prefs.Scale = 1;
                         prefs.Accent = AppAppearance.Hex(AppAppearance.ReadColor(prefs.Accent));
+                        if (!prefs.blueAccentMigrated && prefs.Accent == "#C7F876")
+                            prefs.Accent = AppAppearance.DefaultAccent;
+                        prefs.blueAccentMigrated = true;
                         prefs.NormalizePresets();
                         return prefs;
                     }
