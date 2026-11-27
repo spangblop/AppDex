@@ -1,8 +1,10 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
@@ -17,6 +19,7 @@ namespace GameShelf
     {
         internal Version Version;
         internal Uri Download;
+        internal Uri ReleasePage;
         internal string ReleaseNotes;
         internal string ZipHash;
         internal long ZipSize;
@@ -53,12 +56,30 @@ namespace GameShelf
         internal static async Task<AppUpdate> Check(CancellationToken token)
         {
             using (var client = Client())
-            using (var response = await client.GetAsync("https://api.github.com/repos/" + Repository + "/releases?per_page=30", token)
-                .ConfigureAwait(false))
             {
-                response.EnsureSuccessStatusCode();
-                using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                    return Latest(stream, CurrentVersion);
+                client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue { NoCache = true };
+                return await CheckReleasePages(client, CurrentVersion, token).ConfigureAwait(false);
+            }
+        }
+
+        private static async Task<AppUpdate> CheckReleasePages(HttpClient client, Version current, CancellationToken token)
+        {
+            AppUpdate latest = null;
+            const string feedUrl = "https://api.github.com/repos/" + Repository + "/releases?per_page=30&page=";
+            for (int page = 1; ; page++)
+            {
+                using (var response = await client.GetAsync(feedUrl + page.ToString(CultureInfo.InvariantCulture), token)
+                    .ConfigureAwait(false))
+                {
+                    response.EnsureSuccessStatusCode();
+                    using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
+                        latest = Latest(stream, latest?.Version ?? current) ?? latest;
+
+                    // Use GitHub's pagination signal while keeping requests pinned to the release endpoint.
+                    if (!response.Headers.TryGetValues("Link", out var links) ||
+                        !links.Any(link => Regex.IsMatch(link, @">\s*;\s*rel=""next""")))
+                        return latest;
+                }
             }
         }
 
@@ -81,6 +102,7 @@ namespace GameShelf
                     item.Url == url && item.State == "uploaded" && item.Size > 0 && item.Size <= MaximumZip &&
                     (item.Digest ?? "").StartsWith("sha256:", StringComparison.Ordinal) && ValidHash(item.Digest.Substring(7)));
                 if (asset != null) latest = new AppUpdate { Version = version, Download = new Uri(url),
+                    ReleasePage = new Uri("https://github.com/" + Repository + "/releases/tag/" + release.Tag),
                     ReleaseNotes = release.Body?.Trim(), ZipSize = asset.Size, ZipHash = asset.Digest.Substring(7) };
             }
             return latest;

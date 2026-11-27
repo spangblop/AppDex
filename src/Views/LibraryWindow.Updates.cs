@@ -1,4 +1,6 @@
 using System;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.Serialization;
@@ -73,7 +75,20 @@ namespace GameShelf
             install.SetResourceReference(BackgroundProperty, "AppAccent");
             install.SetResourceReference(ForegroundProperty, "AppAccentInk");
             install.SetResourceReference(BorderBrushProperty, "AppAccent");
-            var actions = new WrapPanel { Children = { later, install } };
+            install.Margin = new Thickness(0, 0, 7, 0);
+            var github = SmallButton("Open GitHub release");
+            github.Click += delegate
+            {
+                try
+                {
+                    using (Process.Start(new ProcessStartInfo(update.ReleasePage.AbsoluteUri) { UseShellExecute = true })) { }
+                }
+                catch (Win32Exception)
+                {
+                    AnnounceError("Couldn't open the AppDex release in your browser.");
+                }
+            };
+            var actions = new WrapPanel { Children = { later, install, github } };
             var panel = new DockPanel { Children = { description, actions, status } };
             DockPanel.SetDock(description, Dock.Top);
             DockPanel.SetDock(actions, Dock.Bottom);
@@ -100,16 +115,36 @@ namespace GameShelf
                 installingUpdate = true;
                 UpdateAvailableButton.IsEnabled = later.IsEnabled = install.IsEnabled = false;
                 status.SetResourceReference(ForegroundProperty, "AppMuted");
-                status.Text = "Downloading and checking the update…";
+                status.Text = "Checking for the latest AppDex release…";
                 status.Visibility = Visibility.Visible;
+                bool restarting = false;
                 try
                 {
+                    AppUpdate latest;
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25)))
+                        latest = await AppUpdates.Check(timeout.Token);
+                    if (updatesClosed) return;
+                    SetAvailableUpdate(latest);
+                    if (latest == null)
+                    {
+                        if (ReferenceEquals(DrawerContent.Content, panel)) ClosePanel();
+                        Announce("No newer AppDex release is available.");
+                        return;
+                    }
+                    if (latest.Version != update.Version)
+                    {
+                        installingUpdate = false;
+                        if (ReferenceEquals(DrawerContent.Content, panel)) OpenAvailableUpdate(null, null);
+                        return;
+                    }
+
+                    status.Text = "Downloading and checking AppDex " + latest.Version.ToString(3) + "…";
                     FlushPreferences();
                     using (var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
-                        await AppUpdateInstaller.Prepare(update, timeout.Token);
+                        await AppUpdateInstaller.Prepare(latest, timeout.Token);
                     status.Text = "Restarting AppDex…";
                     QuitRequested?.Invoke();
-                    return;
+                    restarting = true;
                 }
                 catch (Exception error)
                 {
@@ -118,8 +153,14 @@ namespace GameShelf
                         "Couldn't install the update. " + error.Message;
                     if (!ReferenceEquals(DrawerContent.Content, panel)) AnnounceError(status.Text);
                 }
-                installingUpdate = false;
-                UpdateAvailableButton.IsEnabled = later.IsEnabled = install.IsEnabled = true;
+                finally
+                {
+                    if (!restarting)
+                    {
+                        installingUpdate = false;
+                        UpdateAvailableButton.IsEnabled = later.IsEnabled = install.IsEnabled = true;
+                    }
+                }
             };
             ShowPanel("Update available", panel, later);
         }

@@ -26,7 +26,8 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public List<AppearancePreset> Presets = new List<AppearancePreset>();
         [DataMember] public double Scale = 1;
         [DataMember] public string Accent = AppAppearance.DefaultAccent;
-        [DataMember(EmitDefaultValue = false)] private bool blueAccentMigrated = true;
+        // Read the marker written by Beta 0.6.2 and remove it the next time preferences are saved.
+        [DataMember(EmitDefaultValue = false)] private bool blueAccentMigrated;
         [DataMember(EmitDefaultValue = false)] public bool ConfirmLaunch;
         [DataMember(EmitDefaultValue = false)] public bool QuitAfterLaunch;
         [DataMember(EmitDefaultValue = false)] public bool MinimizeAfterLaunch;
@@ -60,9 +61,9 @@ namespace GameShelf
                         prefs.Style = 0;
                         if (!(prefs.Scale >= 0.75 && prefs.Scale <= 1.5)) prefs.Scale = 1;
                         prefs.Accent = AppAppearance.Hex(AppAppearance.ReadColor(prefs.Accent));
-                        if (!prefs.blueAccentMigrated && prefs.Accent == "#C7F876")
+                        if (prefs.blueAccentMigrated && prefs.Accent == "#5094FF")
                             prefs.Accent = AppAppearance.DefaultAccent;
-                        prefs.blueAccentMigrated = true;
+                        prefs.blueAccentMigrated = false;
                         prefs.NormalizePresets();
                         return prefs;
                     }

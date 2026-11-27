@@ -29,7 +29,7 @@ namespace GameShelf
     {
         private static string wallpaperPath;
         private static ImageSource wallpaper;
-        internal const string DefaultAccent = "#5094FF";
+        internal const string DefaultAccent = "#C7F876";
         internal const string DefaultHeadingFont = "Arial";
         private const string SerifHeading = "Baskervville, Georgia";
         private static readonly AppStyle[] LegacyLooks =
