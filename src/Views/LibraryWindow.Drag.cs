@@ -14,6 +14,7 @@ namespace GameShelf
 {
     public partial class LibraryWindow
     {
+        private const double GroupZoneInset = .23;
         private enum DropKind { Reorder, Group, Pin }
 
         private sealed class DropPosition
@@ -160,7 +161,7 @@ namespace GameShelf
         {
             if (drag.Source.DataContext is Game && PinViewport().Contains(pointer))
                 return FindPinDestination(drag.Pins, Page.TranslatePoint(pointer, Pinned).Y);
-            if (drag.FromPins || preferences.Sort != 2 || !viewport.Contains(pointer) || drag.Slots.Length < 2) return null;
+            if (!CanReorder(drag) || !viewport.Contains(pointer)) return null;
             Point point = Page.TranslatePoint(pointer, Covers);
             int index = FindSlot(drag.Slots, point);
             string target = drag.Projected[index];
@@ -168,10 +169,10 @@ namespace GameShelf
             Rect card = drag.Slots[index];
             double x = (point.X - card.Left) / Math.Max(1, card.Width);
             double y = (point.Y - card.Top) / Math.Max(1, card.Height);
-            bool side = x < .23 || x > .77;
-            bool end = y < .23 || y > .77;
+            bool side = x < GroupZoneInset || x > 1 - GroupZoneInset;
+            bool end = y < GroupZoneInset || y > 1 - GroupZoneInset;
             string name = TileName(tiles[target]);
-            if (!side && !end && activeGroupId == null && drag.Source.DataContext is Game)
+            if (!side && !end && CanGroup(drag))
             {
                 return new DropPosition { Kind = DropKind.Group, Target = target, Slot = index,
                     Label = tiles[target].DataContext is AppGroup ? "Add to " + name : "Group with " + name };
@@ -181,6 +182,10 @@ namespace GameShelf
             return new DropPosition { Kind = DropKind.Reorder, Target = target, Before = before,
                 Label = (before ? "Before " : "After ") + name };
         }
+
+        private bool CanReorder(TileDrag drag) => !drag.FromPins && preferences.Sort == 2 && drag.Slots.Length >= 2;
+
+        private bool CanGroup(TileDrag drag) => activeGroupId == null && drag.Source.DataContext is Game;
 
         private static string TileName(Button tile)
         {
@@ -241,7 +246,58 @@ namespace GameShelf
             Point origin = pointer - (Vector)drag.Anchor;
             origin.X = Math.Max(1, Math.Min(origin.X, Page.ActualWidth - drag.Size.Width - 1));
             origin.Y = Math.Max(1, Math.Min(origin.Y, Page.ActualHeight - drag.Size.Height - 1));
-            drag.Preview.Update(new Rect(origin, drag.Size), clip, guide, emphasize, target == null ? null : target.Label);
+            var overlay = preferences.ShowDragTargets ? DrawDragTargets(drag, viewport) : null;
+            drag.Preview.Update(new Rect(origin, drag.Size), clip, guide, emphasize, target == null ? null : target.Label, overlay);
+        }
+
+        private DrawingGroup DrawDragTargets(TileDrag drag, Rect viewport)
+        {
+            var drawing = new DrawingGroup();
+            using (var dc = drawing.Open())
+            {
+                if (CanReorder(drag))
+                {
+                    var reorder = new Pen(Brushes.Cyan, 1.5) { DashStyle = DashStyles.Dash };
+                    var group = new Pen(Brushes.LimeGreen, 2);
+                    bool groupAllowed = CanGroup(drag);
+                    Vector offset = (Vector)Covers.TranslatePoint(new Point(), Page);
+                    dc.PushClip(new RectangleGeometry(viewport));
+                    for (int i = 0; i < drag.Slots.Length; i++)
+                    {
+                        Rect slot = drag.Slots[i];
+                        slot.Offset(offset);
+                        if (!viewport.IntersectsWith(slot) || drag.Projected[i] == drag.Id) continue;
+                        dc.DrawRectangle(null, reorder, slot);
+                        if (groupAllowed)
+                        {
+                            slot.Inflate(-slot.Width * GroupZoneInset, -slot.Height * GroupZoneInset);
+                            dc.DrawRectangle(null, group, slot);
+                        }
+                    }
+                    dc.Pop();
+                }
+
+                if (drag.Source.DataContext is Game)
+                {
+                    Rect pins = PinViewport();
+                    if (!pins.IsEmpty)
+                    {
+                        var pin = new Pen(Brushes.Orange, 1.5);
+                        dc.PushClip(new RectangleGeometry(pins));
+                        dc.DrawRectangle(null, pin, pins);
+                        for (int i = 0, remaining = 0; i < drag.Pins.Slots.Length; i++)
+                        {
+                            if (i == drag.Pins.SourceIndex) continue;
+                            double y = Pinned.TranslatePoint(new Point(0, drag.Pins.Boundary(i, remaining++)), Page).Y;
+                            if (y >= pins.Top && y <= pins.Bottom)
+                                dc.DrawLine(pin, new Point(pins.Left, y), new Point(pins.Right, y));
+                        }
+                        dc.Pop();
+                    }
+                }
+            }
+            drawing.Freeze();
+            return drawing;
         }
 
         private Rect SameCoordinateViewport(Rect viewport)
@@ -404,6 +460,7 @@ namespace GameShelf
             private Rect clip, guide;
             private bool grouping;
             private string label;
+            private DrawingGroup overlay;
             internal Rect Avatar { get; private set; }
 
             internal DragAdorner(UIElement element, ImageSource image, Brush accent, double radius) : base(element)
@@ -415,20 +472,22 @@ namespace GameShelf
                 IsHitTestVisible = false;
             }
 
-            internal void Update(Rect avatar, Rect viewport, Rect marker, bool group, string text)
+            internal void Update(Rect avatar, Rect viewport, Rect marker, bool group, string text, DrawingGroup targets)
             {
-                if (Avatar == avatar && clip == viewport && guide == marker && grouping == group && label == text) return;
+                if (Avatar == avatar && clip == viewport && guide == marker && grouping == group && label == text && overlay == targets) return;
                 Avatar = avatar;
                 clip = viewport;
                 guide = marker;
                 grouping = group;
                 label = text;
+                overlay = targets;
                 InvalidateVisual();
             }
 
             protected override void OnRender(DrawingContext dc)
             {
                 if (Avatar.Width <= 0 || Avatar.Height <= 0) return;
+                if (overlay != null) dc.DrawDrawing(overlay);
                 if (!guide.IsEmpty && !clip.IsEmpty)
                 {
                     dc.PushClip(new RectangleGeometry(clip));

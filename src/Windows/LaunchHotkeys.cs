@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
+using Forms = System.Windows.Forms;
 
 namespace GameShelf
 {
@@ -16,7 +17,8 @@ namespace GameShelf
         internal static readonly int[] ModifierValues = { 0, 1, 2, 3, 5, 6, 7 };
         internal static readonly string[] ModifierLabels = { "None", "Alt", "Ctrl", "Ctrl+Alt", "Alt+Shift", "Ctrl+Shift", "Ctrl+Alt+Shift" };
         internal static readonly char[] Keys = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".ToCharArray();
-        private readonly HwndSource source;
+        private readonly IDisposable source;
+        private readonly IntPtr handle;
         private readonly Action open;
         private readonly Action<Game> launch;
         private readonly Dictionary<int, (Game Game, LaunchProfile Profile, int Modifiers, int Key)> games =
@@ -35,12 +37,23 @@ namespace GameShelf
 
         internal LaunchHotkeys(Action open, Action<Game> launch) : this(open, launch, DefaultModifiers, DefaultKey) { }
 
-        internal LaunchHotkeys(Action open, Action<Game> launch, int modifiers, int key)
+        internal LaunchHotkeys(Action open, Action<Game> launch, int modifiers, int key, bool useNativeWindow = false)
         {
             this.open = open;
             this.launch = launch;
-            source = new HwndSource(new HwndSourceParameters("AppDex shortcuts") { ParentWindow = new IntPtr(-3) });
-            source.AddHook(HandleMessage);
+            if (useNativeWindow)
+            {
+                var window = new HotkeyWindow(this);
+                source = window;
+                handle = window.Handle;
+            }
+            else
+            {
+                var window = new HwndSource(new HwndSourceParameters("AppDex shortcuts") { ParentWindow = new IntPtr(-3) });
+                window.AddHook(HandleMessage);
+                source = window;
+                handle = window.Handle;
+            }
             quickModifiers = modifiers;
             quickKey = key;
             QuickLaunchRegistered = Register(quickId, modifiers, key);
@@ -78,7 +91,7 @@ namespace GameShelf
             if (modifiers != 0 && !Register(next, modifiers, key))
                 return "That shortcut is unavailable in Windows. Try a different one.";
 
-            if (QuickLaunchRegistered) UnregisterHotKey(source.Handle, quickId);
+            if (QuickLaunchRegistered) UnregisterHotKey(handle, quickId);
             quickId = next;
             quickModifiers = modifiers;
             quickKey = key;
@@ -96,7 +109,7 @@ namespace GameShelf
             if (current != null && games.Values.Any(binding => binding.Game == current && binding.Modifiers == modifiers && binding.Key == key))
                 return null;
             if (!Register(ProbeId, modifiers, key)) return "That shortcut is unavailable in Windows. Try a different one.";
-            UnregisterHotKey(source.Handle, ProbeId);
+            UnregisterHotKey(handle, ProbeId);
             return null;
         }
 
@@ -131,7 +144,7 @@ namespace GameShelf
         private bool Register(int id, int modifiers, int key)
         {
             return IsAssignable(modifiers, key) &&
-                RegisterHotKey(source.Handle, id, (uint)modifiers | NoRepeat, (uint)key);
+                RegisterHotKey(handle, id, (uint)modifiers | NoRepeat, (uint)key);
         }
 
         private IntPtr HandleMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -164,15 +177,35 @@ namespace GameShelf
 
         private void ClearGames()
         {
-            foreach (int id in games.Keys) UnregisterHotKey(source.Handle, id);
+            foreach (int id in games.Keys) UnregisterHotKey(handle, id);
             games.Clear();
         }
 
         public void Dispose()
         {
             ClearGames();
-            if (QuickLaunchRegistered) UnregisterHotKey(source.Handle, quickId);
+            if (QuickLaunchRegistered) UnregisterHotKey(handle, quickId);
             source.Dispose();
+        }
+
+        private sealed class HotkeyWindow : Forms.NativeWindow, IDisposable
+        {
+            private readonly LaunchHotkeys owner;
+
+            internal HotkeyWindow(LaunchHotkeys owner)
+            {
+                this.owner = owner;
+                CreateHandle(new Forms.CreateParams { Caption = "AppDex shortcuts", Parent = new IntPtr(-3) });
+            }
+
+            protected override void WndProc(ref Forms.Message message)
+            {
+                bool handled = false;
+                message.Result = owner.HandleMessage(message.HWnd, message.Msg, message.WParam, message.LParam, ref handled);
+                if (!handled) base.WndProc(ref message);
+            }
+
+            public void Dispose() { DestroyHandle(); }
         }
 
         [DllImport("user32.dll")]

@@ -2,8 +2,10 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Security.Principal;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -23,11 +25,12 @@ namespace GameShelf
         private bool exiting;
         private string trackingError;
         private QuickLaunchWindow quickLaunch;
+        private MemoryMappedViewAccessor activityHandoff;
 
         [STAThread]
         public static void Main(string[] args)
         {
-            if (AppUpdateInstaller.HandleArguments(args)) return;
+            if (AppUpdateInstaller.HandleArguments(args) || ReducedMemoryTray.TryRunWindow(args)) return;
             bool atSignIn = args.Contains(StartupRegistration.Argument, StringComparer.OrdinalIgnoreCase);
             string name = @"Local\" + AppBuild.Name + "-" + WindowsIdentity.GetCurrent().User.Value;
             bool first;
@@ -39,9 +42,25 @@ namespace GameShelf
                     if (!atSignIn) signal.Set();
                     return;
                 }
-                var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
-                new DesktopHost().Run(app, signal, atSignIn);
+                var preferences = LibraryPreferences.Load(Path.Combine(AppBuild.DataDirectory, "preferences.json"));
+                if (preferences.ReducedTrayMemory && !AppBuild.IsPreview)
+                    ReducedMemoryTray.Run(signal, atSignIn, preferences);
+                else RunStandalone(signal, atSignIn);
             }
+        }
+        private static void RunStandalone(WaitHandle signal, bool atSignIn)
+        {
+            var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+            new DesktopHost().Run(app, signal, atSignIn);
+        }
+
+        internal static void RunReducedMemoryWindow(EventWaitHandle signal, MemoryMappedViewAccessor activityHandoff, Process owner, string[] request)
+        {
+            var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+            var host = new DesktopHost { activityHandoff = activityHandoff };
+            host.window.UpdateTrayCoordinator = owner;
+            host.window.LastTrayWorkingSet = ReducedMemoryTray.ReadLastTrayWorkingSet(activityHandoff);
+            host.Run(app, signal, false, request);
         }
 
         private DesktopHost()
@@ -49,7 +68,7 @@ namespace GameShelf
             using (var current = Process.GetCurrentProcess()) session = current.SessionId;
         }
 
-        private void Run(Application app, WaitHandle signal, bool atSignIn)
+        private void Run(Application app, WaitHandle signal, bool atSignIn, string[] reducedMemoryRequest = null)
         {
             using (var icon = Icon.ExtractAssociatedIcon(typeof(DesktopHost).Assembly.Location))
             using (var menu = new Forms.ContextMenuStrip())
@@ -107,7 +126,15 @@ namespace GameShelf
                 {
                     window.Dispatcher.BeginInvoke(new Action(ShowLibrary));
                 }, null, Timeout.Infinite, false);
-                timer.Tick += delegate { Record(false); };
+                timer.Tick += delegate
+                {
+                    Record(false);
+                    if (reducedMemoryRequest != null && !exiting && !window.IsVisible && quickLaunch == null && !window.HasPendingLaunch)
+                    {
+                        exiting = true;
+                        app.Shutdown(ReducedMemoryTray.SleepExitCode);
+                    }
+                };
                 app.Exit += delegate
                 {
                     timer.Stop();
@@ -122,9 +149,22 @@ namespace GameShelf
                     window.Announce(hotkeys.QuickLaunchLabel + " is unavailable. Use Quick launch from the AppDex tray menu.");
                 timer.Start();
                 app.MainWindow = window;
-                if (!atSignIn || !window.StartupInTray) window.Show();
+                if (reducedMemoryRequest != null && reducedMemoryRequest.Length != 0)
+                {
+                    if (reducedMemoryRequest[0] == "quick") ShowQuickLaunch();
+                    else if (reducedMemoryRequest.Length == 3 && reducedMemoryRequest[0] == "game" &&
+                        int.TryParse(reducedMemoryRequest[2], out int profileIndex))
+                    {
+                        string gameId = Encoding.UTF8.GetString(Convert.FromBase64String(reducedMemoryRequest[1]));
+                        var game = window.Games.FirstOrDefault(item => item.Id == gameId);
+                        if (game != null)
+                            LaunchProfileFromShortcut(game, profileIndex < 0 ? null : game.Settings.LaunchProfiles.ElementAtOrDefault(profileIndex));
+                    }
+                }
+                else if (!atSignIn || !window.StartupInTray) window.Show();
                 window.StartUpdateChecks();
-                app.Run();
+                int exitCode = app.Run();
+                if (reducedMemoryRequest != null) Environment.ExitCode = exitCode;
             }
         }
 
@@ -186,6 +226,7 @@ namespace GameShelf
                     book.Save(file);
                     lastSave = now;
                 }
+                if (flush) activityHandoff?.Write(0, now);
                 if (trackingError != null) window.Announce("Activity tracking resumed.");
                 trackingError = null;
             }
@@ -198,19 +239,12 @@ namespace GameShelf
 
         private long SampleActivity(out bool changed)
         {
-            if (book == null) book = ActivityBook.Load(file);
-            var library = window.Games.ToArray();
-            var ids = new System.Collections.Generic.HashSet<string>(library.Select(game => game.Id));
-            var custom = library.SelectMany(game => new[] { game.Settings.Executable }.Concat(
-                    game.Settings.LaunchProfiles.Select(profile => profile.Executable))
-                .Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => new { Path = path, game.Id }))
-                .GroupBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(group => group.Key, group => group.First().Id, StringComparer.OrdinalIgnoreCase);
-            var sample = GameProcesses.Read(session, custom).Where(game => ids.Contains(game.GameId))
-                .Concat(SteamLibrary.Running(library, session)).ToArray();
-            long now = GameProcesses.AwakeTicks();
-            changed = book.Observe(sample, now, DateTime.UtcNow.Ticks);
-            return now;
+            if (book == null)
+            {
+                book = ActivityBook.Load(file);
+                if (activityHandoff != null) book.ResumeSampling(ReducedMemoryTray.TakeActivityHandoff(activityHandoff));
+            }
+            return book.ObserveLibrary(window.Games, session, out changed);
         }
 
         private void ResetGameActivity(Game game)

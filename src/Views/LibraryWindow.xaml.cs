@@ -16,9 +16,9 @@ using System.Windows.Threading;
 
 [assembly: AssemblyTitle("AppDex")]
 [assembly: AssemblyProduct("AppDex")]
-[assembly: AssemblyVersion("0.6.3.0")]
-[assembly: AssemblyFileVersion("0.6.3.0")]
-[assembly: AssemblyInformationalVersion("Beta 0.6.3")]
+[assembly: AssemblyInformationalVersion("Beta 0.6.4")]
+[assembly: AssemblyVersion("0.6.4.0")]
+[assembly: AssemblyFileVersion("0.6.4.0")]
 
 namespace GameShelf
 {
@@ -31,6 +31,7 @@ namespace GameShelf
         internal IEnumerable<Game> Games { get { return catalog.Games; } }
         internal bool QuitOnWindowClose => preferences.QuitOnWindowClose;
         internal bool StartupInTray => preferences.StartupInTray;
+        internal bool HasPendingLaunch => pending.Keys.Any(game => game.Launching);
         internal event Action QuitRequested;
         internal event Action<Game> ResetActivityRequested;
         internal event Action GameShortcutsChanged;
@@ -75,7 +76,7 @@ namespace GameShelf
                     Dispatcher.BeginInvoke(DispatcherPriority.Background,
                         new Action(() => Announce("Couldn't save AppDex settings. " + error.Message)));
             });
-            AppAppearance.Apply(preferences);
+            AppAppearance.Apply(preferences, showWallpaper: false);
             InitializeComponent();
             Title = AppBuild.Name;
             BuildNumber.Text = "Build " + AppUpdates.CurrentVersion.ToString(3);
@@ -117,8 +118,15 @@ namespace GameShelf
                 if (e.ViewportWidthChange != 0) ResizeTiles();
             };
             SourceInitialized += delegate { ApplyWindowChrome(); };
+            IsVisibleChanged += delegate { SetLibraryVisible(IsVisible); };
+            trayArtworkCleanup.Tick += delegate
+            {
+                trayArtworkCleanup.Stop();
+                // WPF's decoded bitmaps hold native memory until the abandoned image objects are collected.
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: false);
+            };
             launchWatch.Tick += delegate { ExpireLaunches(clock.ElapsedMilliseconds); };
-            Closed += delegate { launchWatch.Stop(); uiSounds.Dispose(); };
+            Closed += delegate { trayArtworkCleanup.Stop(); launchWatch.Stop(); uiSounds.Dispose(); };
             RenderLibrary();
             InitializeLibrarySync();
         }
@@ -142,7 +150,7 @@ namespace GameShelf
                     typeof(DesktopHost).Assembly.Location);
                 var settings = new SettingsPane(startup, preferences, QueuePreferences, delegate
                 {
-                    AppAppearance.Apply(preferences);
+                    AppAppearance.Apply(preferences, showWallpaper: IsVisible);
                     ApplyWindowChrome();
                     RenderLibrary();
                 }, Path.GetDirectoryName(catalog.PreferencesFile));

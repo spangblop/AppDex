@@ -25,7 +25,6 @@ namespace GameShelf
         [DataMember(Name = "appid")] public uint AppId { get; set; }
         [DataMember(Name = "name")] public string Name { get; set; }
         public string Directory { get; set; }
-        internal ImageSource CachedArtwork { get; set; }
         internal ImportCandidate Candidate { get; set; }
         private bool selected;
         public event PropertyChangedEventHandler PropertyChanged;

@@ -418,7 +418,8 @@
                 Foreground="{DynamicResource AppAccentText}"/>
           </StackPanel>
           <DockPanel VerticalAlignment="Center">
-            <Image x:Name="AppMark" DockPanel.Dock="Left" Source="pack://application:,,,/AppDex;component/Assets/AppDexMark.png" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,9,0"/>
+            <Image x:Name="AppMark" DockPanel.Dock="Left" Source="pack://application:,,,/AppDex;component/Assets/AppDexMark.png" Width="30" Height="30" RenderOptions.BitmapScalingMode="HighQuality" Margin="0,0,9,0"
+                MouseLeftButtonDown="DeveloperLogoClick"/>
             <StackPanel>
               <WrapPanel>
                 <StackPanel Orientation="Horizontal">

@@ -28,6 +28,14 @@ namespace GameShelf
                 if (index < Slots.Length) return Slots[index].Top;
                 return Slots.Length == 0 ? 2 : Slots[Slots.Length - 1].Bottom + Cards[Cards.Length - 1].Margin.Bottom;
             }
+
+            internal double Boundary(int index, int remaining)
+            {
+                var card = Slots[index];
+                double top = PreviewSlot.HasValue
+                    ? SlotTop(remaining < PreviewSlot.Value ? remaining : remaining + 1) : card.Top;
+                return top + card.Height / 2;
+            }
         }
 
         private static DropPosition FindPinDestination(PinDragLayout pins, double y)
@@ -36,11 +44,8 @@ namespace GameShelf
             for (int index = 0; index < pins.Slots.Length; index++)
             {
                 if (index == pins.SourceIndex) continue;
-                var card = pins.Slots[index];
                 // Use the preview order after the first hover, so the gap stays put under the pointer.
-                double top = pins.PreviewSlot.HasValue
-                    ? pins.SlotTop(slot < pins.PreviewSlot.Value ? slot : slot + 1) : card.Top;
-                if (y < top + card.Height / 2)
+                if (y < pins.Boundary(index, slot))
                     return new DropPosition { Kind = DropKind.Pin, Slot = slot, Label = "Pin before " + TileName(pins.Cards[index]) };
                 slot++;
             }

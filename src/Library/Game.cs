@@ -25,8 +25,8 @@ namespace GameShelf
             uint.TryParse(defaultTarget.Split('/').Last(), out id) ? id : 0; } }
         public bool Custom { get; private set; }
         public GameSettings Settings { get; private set; }
-        public ImageSource DefaultArtwork { get; private set; }
-        public ImageSource Artwork { get; private set; }
+        public ImageSource DefaultArtwork => defaultArtwork ?? (defaultArtwork = LoadDefaultArtwork());
+        public ImageSource Artwork => artwork ?? (artwork = loadPicture?.Invoke() ?? DefaultArtwork);
         public long Launches { get; private set; }
         public long PlayTicks { get; private set; }
         public bool Playing { get; private set; }
@@ -40,9 +40,12 @@ namespace GameShelf
         public event PropertyChangedEventHandler PropertyChanged;
         private readonly string defaultTarget;
         private readonly string aliases;
+        private readonly Func<ImageSource> loadDefaultArtwork;
+        private Func<ImageSource> loadPicture;
+        private ImageSource artwork, defaultArtwork;
         private string[] searchWords;
 
-        private Game(string name, string platform, string target, string art, string aliases = "", bool custom = false, ImageSource steamCover = null)
+        private Game(string name, string platform, string target, string art, string aliases = "", bool custom = false, Func<ImageSource> steamCover = null)
         {
             Id = art;
             Platform = platform;
@@ -52,10 +55,9 @@ namespace GameShelf
             Settings = new GameSettings { Id = Id, Name = name, Executable = custom ? target : null, Arguments = "" };
             UpdateSearchWords();
             UpdateStatistics(0, 0, false);
-            DefaultArtwork = steamCover ?? (custom || art.StartsWith("steam-", StringComparison.Ordinal) || art.StartsWith("epic-", StringComparison.Ordinal) ? (ImageSource)CustomBackdrop() :
-                new BitmapImage(new Uri("pack://application:,,,/AppDex;component/Assets/" + art + ".jpg")));
-            DefaultArtwork.Freeze();
-            Artwork = DefaultArtwork;
+            loadDefaultArtwork = steamCover;
+            if (!custom && !art.StartsWith("steam-", StringComparison.Ordinal) && !art.StartsWith("epic-", StringComparison.Ordinal))
+                loadDefaultArtwork = () => new BitmapImage(new Uri("pack://application:,,,/AppDex;component/Assets/" + art + ".jpg"));
         }
 
         internal static Game CustomGame(GameSettings settings)
@@ -63,10 +65,24 @@ namespace GameShelf
             return new Game(settings.Name, "WINDOWS", settings.Executable, settings.Id, "", true);
         }
 
-        internal static Game SteamGame(GameSettings settings, string root, ImageSource artwork = null)
+        internal static Game SteamGame(GameSettings settings, string root)
         {
+            uint id = settings.SteamAppId;
             return new Game(settings.Name, "STEAM", "steam://rungameid/" + settings.SteamAppId,
-                settings.Id, steamCover: artwork ?? SteamLibrary.Artwork(root, settings.SteamAppId));
+                settings.Id, steamCover: () => SteamLibrary.Artwork(root, id));
+        }
+
+        private ImageSource LoadDefaultArtwork()
+        {
+            var picture = loadDefaultArtwork?.Invoke() ?? CustomBackdrop();
+            picture.Freeze();
+            return picture;
+        }
+
+        internal void ReleaseArtwork()
+        {
+            artwork = null;
+            defaultArtwork = null;
         }
 
         internal static Game EpicGame(GameSettings settings)
@@ -89,11 +105,12 @@ namespace GameShelf
             return new DrawingImage(group);
         }
 
-        internal void Apply(GameSettings settings, ImageSource picture)
+        internal void Apply(GameSettings settings, Func<ImageSource> picture)
         {
             Settings = settings;
             UpdateSearchWords();
-            Artwork = picture ?? DefaultArtwork;
+            loadPicture = picture;
+            artwork = null;
             Changed("Name");
             Changed("AccessibleName");
             Changed("EditName");

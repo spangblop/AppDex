@@ -34,6 +34,9 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public bool QuitOnWindowClose;
         [DataMember(EmitDefaultValue = false)] public bool SkipQuitConfirmation;
         [DataMember(EmitDefaultValue = false)] public bool StartupInTray;
+        [DataMember(EmitDefaultValue = false)] public bool ReducedTrayMemory;
+        [DataMember(EmitDefaultValue = false)] public bool ShowDragTargets;
+        [DataMember(EmitDefaultValue = false)] public bool ShowTrayMemory;
         [DataMember(EmitDefaultValue = false)] public bool UiSoundsEnabled;
         [DataMember(EmitDefaultValue = false)] public int? QuickLaunchModifiers;
         [DataMember(EmitDefaultValue = false)] public int? QuickLaunchKey;

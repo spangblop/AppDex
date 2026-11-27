@@ -95,7 +95,7 @@ namespace GameShelf
             return normalized;
         }
 
-        internal static void Apply(LibraryPreferences prefs)
+        internal static void Apply(LibraryPreferences prefs, bool showWallpaper = true)
         {
             var resources = Application.Current.Resources;
             if (resources.MergedDictionaries.Count == 0)
@@ -125,7 +125,7 @@ namespace GameShelf
             resources["AppPlayVisibility"] = Visible(look.ShowPlay);
             resources["AppPlaytimeVisibility"] = Visible(look.ShowPlaytime);
             resources["AppTexture"] = Texture(look.Texture, look.TextureOpacity);
-            resources["AppWallpaper"] = Wallpaper(look);
+            SetWallpaper(look, showWallpaper);
             var scale = new ScaleTransform(prefs.Scale, prefs.Scale);
             scale.Freeze();
             resources["AppScale"] = scale;
@@ -212,6 +212,16 @@ namespace GameShelf
             ImageSource loaded = GameCatalog.ReadSizedPicture(path, 1920);
             wallpaper = loaded;
             wallpaperPath = path;
+        }
+
+        internal static void SetWallpaper(AppearanceOptions look, bool visible)
+        {
+            if (!visible)
+            {
+                wallpaper = null;
+                wallpaperPath = null;
+            }
+            Application.Current.Resources["AppWallpaper"] = visible ? Wallpaper(look) : Brushes.Transparent;
         }
 
         private static Brush Wallpaper(AppearanceOptions look)

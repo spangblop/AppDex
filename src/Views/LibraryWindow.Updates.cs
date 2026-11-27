@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.Serialization;
@@ -18,6 +19,7 @@ namespace GameShelf
             Interval = TimeSpan.FromMinutes(15)
         };
         private AppUpdate availableUpdate;
+        internal Process UpdateTrayCoordinator;
         private bool checkingForUpdate, installingUpdate, updatesClosed;
 
         internal void StartUpdateChecks()
@@ -127,7 +129,7 @@ namespace GameShelf
                     status.Text = "Downloading and checking AppDex " + latest.Version.ToString(3) + "…";
                     FlushPreferences();
                     using (var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
-                        await AppUpdateInstaller.Prepare(latest, timeout.Token);
+                        await AppUpdateInstaller.Prepare(latest, timeout.Token, UpdateTrayCoordinator);
                     status.Text = "Restarting AppDex…";
                     QuitRequested?.Invoke();
                     restarting = true;

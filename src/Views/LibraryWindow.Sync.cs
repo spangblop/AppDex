@@ -49,10 +49,7 @@ namespace GameShelf
         {
             if (tileDrag != null || pressedTile != null || DrawerContent.Content is ImportPane) return;
             if (preferences.SyncSteam && !syncingStores.Contains("Steam"))
-            {
-                var known = catalog.KnownSteamIds();
-                RefreshStore("Steam", () => ScanSteam(known), scan => scan != null && catalog.SyncSteam(scan));
-            }
+                RefreshStore("Steam", ScanSteam, result => result.Scan != null && catalog.SyncSteam(result.Scan, result.Client));
             if (preferences.SyncEpic && !syncingStores.Contains("Epic Games"))
                 RefreshStore("Epic Games", () =>
                 {
@@ -61,15 +58,12 @@ namespace GameShelf
                 }, scan => catalog.SyncEpic(scan.Apps, scan.Complete));
         }
 
-        private static SteamScan ScanSteam(HashSet<uint> known)
+        private static (SteamScan Scan, string Client) ScanSteam()
         {
             var location = SteamLocation.Read(SteamLocation.PreferencesFile);
             string client = location.FindClient();
-            if (client == null && string.IsNullOrEmpty(location.LibraryFolder)) return null;
-            var scan = SteamLibrary.ScanInstalled(client, location.LibraryFolder);
-            foreach (var title in scan.Titles)
-                if (!known.Contains(title.AppId)) title.CachedArtwork = SteamLibrary.Artwork(client, title.AppId);
-            return scan;
+            if (client == null && string.IsNullOrEmpty(location.LibraryFolder)) return (null, null);
+            return (SteamLibrary.ScanInstalled(client, location.LibraryFolder), client);
         }
 
         private async void RefreshStore<T>(string source, Func<T> scan, Func<T, bool> apply)

@@ -8,6 +8,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 
 namespace GameShelf
 {
@@ -16,6 +17,12 @@ namespace GameShelf
         private static readonly string[] Sources = { null, "Steam", "Windows", "Epic Games" };
         private readonly List<string> visibleIds = new List<string>();
         private readonly Dictionary<string, Button> tiles = new Dictionary<string, Button>();
+        private readonly DispatcherTimer trayArtworkCleanup = new DispatcherTimer(DispatcherPriority.ContextIdle)
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        private bool libraryVisible;
+        private double hiddenLibraryOffset, hiddenPinnedOffset;
         private string activeGroupId;
         private string libraryQuery = "";
         private double libraryOffset;
@@ -30,10 +37,52 @@ namespace GameShelf
             activityOrderDirty = false;
             var all = Games.ToDictionary(g => g.Id);
             preferences.Sync(all.Keys);
+            if (!libraryVisible) return;
             if (activeGroupId != null && ActiveGroup == null) RestoreLibraryScope();
             RenderPins(all);
             RenderArrangement(all);
             UpdateTotalPlaytime();
+        }
+
+        private void SetLibraryVisible(bool shown)
+        {
+            if (libraryVisible == shown) return;
+            libraryVisible = shown;
+            if (shown)
+            {
+                trayArtworkCleanup.Stop();
+                if (libraryWasHidden && UpdateTrayCoordinator == null)
+                {
+                    using (var process = System.Diagnostics.Process.GetCurrentProcess())
+                        LastTrayWorkingSet = process.WorkingSet64;
+                }
+                AppAppearance.SetWallpaper(preferences.Appearance, true);
+                RenderLibrary();
+                LibraryScroll.ScrollToVerticalOffset(hiddenLibraryOffset);
+                PinnedScroll.ScrollToVerticalOffset(hiddenPinnedOffset);
+                return;
+            }
+
+            libraryWasHidden = true;
+            hiddenLibraryOffset = LibraryScroll.VerticalOffset;
+            hiddenPinnedOffset = PinnedScroll.VerticalOffset;
+            EndTileDrag(false);
+            CloseMenu();
+            HighlightAppearance(AppearanceTarget.None);
+            panelFocus = null;
+            ClearTiles();
+            Pinned.Children.Clear();
+            foreach (Game game in Games) game.ReleaseArtwork();
+            AppAppearance.SetWallpaper(preferences.Appearance, false);
+            trayArtworkCleanup.Start();
+        }
+
+        private void ClearTiles()
+        {
+            Covers.Children.Clear();
+            tiles.Clear();
+            visible.Clear();
+            visibleIds.Clear();
         }
 
         private void RenderArrangement(Dictionary<string, Game> all)
@@ -44,10 +93,7 @@ namespace GameShelf
             var scope = group == null ? all.Values : group.Apps.Select(id => all[id]);
             var matching = new HashSet<string>(scope.Where(game => (source == null || game.Source == source) && game.Matches(terms))
                 .Select(game => game.Id));
-            Covers.Children.Clear();
-            tiles.Clear();
-            visible.Clear();
-            visibleIds.Clear();
+            ClearTiles();
             int shown = matching.Count;
             if (group != null)
             {

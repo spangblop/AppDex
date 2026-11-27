@@ -30,6 +30,27 @@ namespace GameShelf
         private long? previousSample;
         public bool Dirty { get; private set; }
 
+        internal void ResumeSampling(long sample)
+        {
+            if (sample > 0 && sample <= GameProcesses.AwakeTicks()) previousSample = sample;
+        }
+
+        internal long ObserveLibrary(IEnumerable<Game> games, int session, out bool changed)
+        {
+            var library = games.ToArray();
+            var ids = new HashSet<string>(library.Select(game => game.Id));
+            var custom = library.SelectMany(game => new[] { game.Settings.Executable }.Concat(
+                    game.Settings.LaunchProfiles.Select(profile => profile.Executable))
+                .Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => new { Path = path, game.Id }))
+                .GroupBy(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().Id, StringComparer.OrdinalIgnoreCase);
+            var sample = GameProcesses.Read(session, custom).Where(game => ids.Contains(game.GameId))
+                .Concat(SteamLibrary.Running(library, session)).ToArray();
+            long now = GameProcesses.AwakeTicks();
+            changed = Observe(sample, now, DateTime.UtcNow.Ticks);
+            return now;
+        }
+
         // Keep process identities in the checkpoint so reopening AppDex during a session cannot add a launch.
         public bool Observe(RunningGame[] sample, long awakeTicks, long utcTicks)
         {

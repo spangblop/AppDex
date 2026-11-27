@@ -105,7 +105,6 @@ namespace GameShelf
                         loaded.Add(game = Game.CustomGame(entry));
                     }
                     else if (!loaded.Contains(game)) loaded.Add(game);
-                    ImageSource picture = null;
                     if (entry.Picture != null)
                     {
                         Guid imageId;
@@ -113,13 +112,8 @@ namespace GameShelf
                             Path.GetExtension(entry.Picture) != ".png" ||
                             !Guid.TryParseExact(Path.GetFileNameWithoutExtension(entry.Picture), "N", out imageId))
                             throw new InvalidDataException("Invalid app picture.");
-                        try { picture = ReadPicture(PicturePath(entry.Picture)); }
-                        catch (IOException) { }
-                        catch (UnauthorizedAccessException) { }
-                        catch (NotSupportedException) { }
-                        catch (FileFormatException) { }
                     }
-                    game.Apply(entry, picture);
+                    game.Apply(entry, PictureLoader(entry.Picture));
                 }
                 Games = loaded;
                 saved = entries;
@@ -136,6 +130,18 @@ namespace GameShelf
         }
 
         private string PicturePath(string name) { return Path.Combine(directory, "Pictures", name); }
+
+        private Func<ImageSource> PictureLoader(string name)
+        {
+            if (name == null) return null;
+            string path = PicturePath(name);
+            return () =>
+            {
+                try { return ReadPicture(path); }
+                catch (Exception error) when (error is IOException || error is UnauthorizedAccessException ||
+                    error is NotSupportedException || error is FileFormatException) { return null; }
+            };
+        }
 
         public static BitmapSource ReadPicture(string file)
         {
@@ -223,7 +229,7 @@ namespace GameShelf
                 if (imported != null) DiscardFile(imported);
                 throw;
             }
-            game.Apply(draft, newPicture ?? (draft.Picture == null ? null : game.Artwork));
+            game.Apply(draft, PictureLoader(draft.Picture));
             if (existing == null) Games.Add(game);
             if (oldPicture != null && !saved.Any(s => s.Picture == oldPicture)) DiscardFile(PicturePath(oldPicture));
             return game;
@@ -271,14 +277,9 @@ namespace GameShelf
             return AddSteam(selected, root, automatic: false);
         }
 
-        internal HashSet<uint> KnownSteamIds()
+        internal bool SyncSteam(SteamScan scan, string root)
         {
-            return new HashSet<uint>(Games.Select(g => g.SteamId).Concat(saved.Where(s => s.Removed).Select(s => s.SteamAppId)));
-        }
-
-        internal bool SyncSteam(SteamScan scan)
-        {
-            bool added = AddSteam(scan.Titles, null, automatic: true).Count > 0;
+            bool added = AddSteam(scan.Titles, root, automatic: true).Count > 0;
             var installed = new HashSet<uint>(scan.Titles.Select(t => t.AppId));
             foreach (var game in Games.Where(g => g.SteamId != 0))
             {
@@ -308,7 +309,7 @@ namespace GameShelf
                 stockApps.TryGetValue(title.AppId, out stock);
                 var settings = stock == null ? new GameSettings { Id = "steam-" + title.AppId, Name = title.Name, SteamAppId = title.AppId } : stock.Settings;
                 if (automatic && removed.Contains(settings.Id)) continue;
-                var game = stock ?? Game.SteamGame(settings, root, title.CachedArtwork);
+                var game = stock ?? Game.SteamGame(settings, root);
                 game.Apply(settings, null);
                 additions.Add(game);
                 entries.RemoveAll(s => s.Id == settings.Id);
@@ -395,7 +396,7 @@ namespace GameShelf
             {
                 WriteEntries(entries);
                 Games.AddRange(additions);
-                foreach (var update in moved) update.Key.Apply(update.Value, update.Key.Artwork);
+                foreach (var update in moved) update.Key.Apply(update.Value, PictureLoader(update.Value.Picture));
             }
             return additions;
         }
