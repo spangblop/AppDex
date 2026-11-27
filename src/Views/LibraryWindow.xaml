@@ -498,7 +498,11 @@
         </Grid>
       </Grid>
       <Border Grid.Row="2" BorderBrush="{DynamicResource AppEdge}" BorderThickness="0,1,0,0" Background="{DynamicResource AppPanel}" Padding="13,6">
-        <TextBlock x:Name="Status" Foreground="{DynamicResource AppMuted}" TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" FontSize="12"/>
+        <DockPanel>
+          <TextBlock x:Name="BuildNumber" DockPanel.Dock="Right" Margin="12,0,0,0"
+              Foreground="{DynamicResource AppMuted}" FontSize="12"/>
+          <TextBlock x:Name="Status" Foreground="{DynamicResource AppMuted}" TextTrimming="CharacterEllipsis" AutomationProperties.LiveSetting="Polite" FontSize="12"/>
+        </DockPanel>
       </Border>
     </Grid>
     <Canvas x:Name="MenuLayer" Visibility="Collapsed" Background="Transparent" Panel.ZIndex="2"

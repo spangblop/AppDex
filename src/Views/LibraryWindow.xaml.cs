@@ -16,9 +16,9 @@ using System.Windows.Threading;
 
 [assembly: AssemblyTitle("AppDex")]
 [assembly: AssemblyProduct("AppDex")]
-[assembly: AssemblyVersion("0.5.9.0")]
-[assembly: AssemblyFileVersion("0.5.9.0")]
-[assembly: AssemblyInformationalVersion("Beta 0.5.9")]
+[assembly: AssemblyVersion("0.6.0.0")]
+[assembly: AssemblyFileVersion("0.6.0.0")]
+[assembly: AssemblyInformationalVersion("Beta 0.6.0")]
 
 namespace GameShelf
 {
@@ -78,6 +78,7 @@ namespace GameShelf
             AppAppearance.Apply(preferences);
             InitializeComponent();
             Title = AppBuild.Name;
+            BuildNumber.Text = "Build " + AppUpdates.CurrentVersion.ToString(3);
             if (AppBuild.IsPreview)
             {
                 SortPicker.Visibility = SourcePicker.Visibility = Visibility.Collapsed;

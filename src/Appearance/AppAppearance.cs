@@ -29,7 +29,7 @@ namespace GameShelf
     {
         private static string wallpaperPath;
         private static ImageSource wallpaper;
-        internal const string DefaultAccent = "#C7F876";
+        internal const string DefaultAccent = "#FF4040";
         internal const string DefaultHeadingFont = "Arial";
         private const string SerifHeading = "Baskervville, Georgia";
         private static readonly AppStyle[] LegacyLooks =
@@ -164,7 +164,7 @@ namespace GameShelf
             Color panel = ReadColor(look.Colors[1]);
             Color canvas = ReadColor(look.Colors[0]);
             resources["AppCanvas"] = Canvas(look, canvas);
-            Color accent = ReadColor(prefs.Accent);
+            Color accent = ReadColor(DefaultAccent);
             resources["AppAccent"] = Brush(accent);
             resources["AppAccentInk"] = Contrast(accent, Colors.Black) >= Contrast(accent, Colors.White) ? Brushes.Black : Brushes.White;
             Color readable = ReadableAccent(accent, panel, canvas);
