@@ -1,6 +1,4 @@
 using System;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.Serialization;
@@ -75,20 +73,7 @@ namespace GameShelf
             install.SetResourceReference(BackgroundProperty, "AppAccent");
             install.SetResourceReference(ForegroundProperty, "AppAccentInk");
             install.SetResourceReference(BorderBrushProperty, "AppAccent");
-            install.Margin = new Thickness(0, 0, 7, 0);
-            var github = SmallButton("Open GitHub release");
-            github.Click += delegate
-            {
-                try
-                {
-                    using (Process.Start(new ProcessStartInfo(update.ReleasePage.AbsoluteUri) { UseShellExecute = true })) { }
-                }
-                catch (Win32Exception)
-                {
-                    AnnounceError("Couldn't open the AppDex release in your browser.");
-                }
-            };
-            var actions = new WrapPanel { Children = { later, install, github } };
+            var actions = new WrapPanel { Children = { later, install } };
             var panel = new DockPanel { Children = { description, actions, status } };
             DockPanel.SetDock(description, Dock.Top);
             DockPanel.SetDock(actions, Dock.Bottom);

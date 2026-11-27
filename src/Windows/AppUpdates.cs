@@ -19,7 +19,6 @@ namespace GameShelf
     {
         internal Version Version;
         internal Uri Download;
-        internal Uri ReleasePage;
         internal string ReleaseNotes;
         internal string ZipHash;
         internal long ZipSize;
@@ -102,7 +101,6 @@ namespace GameShelf
                     item.Url == url && item.State == "uploaded" && item.Size > 0 && item.Size <= MaximumZip &&
                     (item.Digest ?? "").StartsWith("sha256:", StringComparison.Ordinal) && ValidHash(item.Digest.Substring(7)));
                 if (asset != null) latest = new AppUpdate { Version = version, Download = new Uri(url),
-                    ReleasePage = new Uri("https://github.com/" + Repository + "/releases/tag/" + release.Tag),
                     ReleaseNotes = release.Body?.Trim(), ZipSize = asset.Size, ZipHash = asset.Digest.Substring(7) };
             }
             return latest;

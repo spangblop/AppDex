@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,7 +20,6 @@ namespace GameShelf
 
         internal static async Task Prepare(AppUpdate update, CancellationToken token)
         {
-            RequireStandardUser();
             string target = CurrentExecutable;
             string id = Guid.NewGuid().ToString("N");
             string directory = Path.Combine(Path.GetDirectoryName(target), StagePrefix + id);
@@ -96,7 +94,6 @@ namespace GameShelf
                 if (args.Length != 5 || !int.TryParse(args[1], out int parentId) || !long.TryParse(args[2], out long parentStart) ||
                     Path.GetFileName(args[3]) != args[3] || !args[3].EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                     !AppUpdates.ValidHash(args[4]) || !TryGetStage(out string directory, out string id)) return true;
-                RequireStandardUser();
                 verifiedStage = directory;
                 string target = Path.Combine(Path.GetDirectoryName(directory), args[3]);
                 string candidate = Path.Combine(directory, Candidate);
@@ -128,15 +125,6 @@ namespace GameShelf
                 }
             }
             return true;
-        }
-
-        private static void RequireStandardUser()
-        {
-            using (var identity = WindowsIdentity.GetCurrent())
-            {
-                if (new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator))
-                    throw new InvalidOperationException("Reopen AppDex without administrator privileges to install the update.");
-            }
         }
 
         private static bool TryGetStage(out string directory, out string id)
