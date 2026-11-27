@@ -1,10 +1,13 @@
 using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
 
 namespace GameShelf
 {
@@ -13,6 +16,9 @@ namespace GameShelf
         private const string ApplyArgument = "--apply-appdex-update";
         private const string CleanupArgument = "--cleanup-appdex-update";
         private const string StagePrefix = "AppDex-update-";
+        private const string AccessDeniedMarker = "ACCESS_DENIED";
+        private const string RepositoryUrl = "https://github.com/spangblop/AppDex";
+        internal const string AccessDeniedHelp = "Windows denied access while updating AppDex. Close AppDex and relaunch it as administrator to retry the automatic update. To update manually, download the Windows ZIP from the AppDex repository.";
         private const string Helper = "Updater.exe", Candidate = "Next.exe", Backup = "Previous.exe",
             Archive = "Update.zip", Proceed = "Install", Done = "Complete", Failure = "Failure.txt";
         private static string CurrentExecutable => typeof(AppUpdateInstaller).Assembly.Location;
@@ -21,6 +27,7 @@ namespace GameShelf
         internal static async Task Prepare(AppUpdate update, CancellationToken token)
         {
             string target = CurrentExecutable;
+            EnsureWritableExecutable(target);
             string id = Guid.NewGuid().ToString("N");
             string directory = Path.Combine(Path.GetDirectoryName(target), StagePrefix + id);
             if (Interlocked.CompareExchange(ref preparing, 1, 0) != 0)
@@ -53,6 +60,12 @@ namespace GameShelf
             }
         }
 
+        private static void EnsureWritableExecutable(string target)
+        {
+            if ((File.GetAttributes(target) & FileAttributes.ReadOnly) != 0)
+                throw new IOException("AppDex is running from a read-only file. Extract AppDex.exe from the ZIP to a folder you can write to, then open the extracted copy.");
+        }
+
         private static void WaitForHelper(string target, string directory, string id, string hash)
         {
             using (var current = Process.GetCurrentProcess())
@@ -70,8 +83,10 @@ namespace GameShelf
                         if (helper.HasExited) break;
                     }
                     string failure = Path.Combine(directory, Failure);
-                    throw new IOException(File.Exists(failure) ? File.ReadAllText(failure) :
-                        "The updater couldn't get ready. AppDex is still open.");
+                    string detail = File.Exists(failure) ? File.ReadAllText(failure) :
+                        "The updater couldn't get ready. AppDex is still open.";
+                    if (detail == AccessDeniedMarker) throw new UnauthorizedAccessException();
+                    throw new IOException(detail);
                 }
             }
         }
@@ -116,15 +131,50 @@ namespace GameShelf
             }
             catch (Exception error)
             {
-                if (parentExited) MessageBox.Show("Couldn't finish updating AppDex. " + error.Message, "AppDex update");
+                if (parentExited)
+                {
+                    if (IsAccessDenied(error)) CreateAccessDeniedDialog().ShowDialog();
+                    else MessageBox.Show("Couldn't finish updating AppDex. " + error.Message, "AppDex update");
+                }
                 else if (verifiedStage != null)
                 {
-                    try { File.WriteAllText(Path.Combine(verifiedStage, Failure), error.Message); }
+                    try { File.WriteAllText(Path.Combine(verifiedStage, Failure), IsAccessDenied(error) ? AccessDeniedMarker : error.Message); }
                     catch (IOException) { }
                     catch (UnauthorizedAccessException) { }
                 }
             }
             return true;
+        }
+
+        internal static bool IsAccessDenied(Exception error) =>
+            error is UnauthorizedAccessException || error.HResult == unchecked((int)0x80070005) ||
+            (error is Win32Exception win32 && win32.NativeErrorCode == 5);
+
+        internal static Hyperlink CreateRepositoryLink()
+        {
+            var link = new Hyperlink(new Run("github.com/spangblop/AppDex")) { NavigateUri = new Uri(RepositoryUrl) };
+            link.RequestNavigate += (sender, e) =>
+            {
+                e.Handled = true;
+                try { using (Process.Start(new ProcessStartInfo(RepositoryUrl) { UseShellExecute = true })) { } }
+                catch (Win32Exception) { MessageBox.Show("Couldn't open your browser. Visit " + RepositoryUrl, "AppDex update"); }
+            };
+            return link;
+        }
+
+        private static Window CreateAccessDeniedDialog()
+        {
+            var instructions = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            instructions.Inlines.Add(new Run(AccessDeniedHelp));
+            instructions.Inlines.Add(new LineBreak());
+            instructions.Inlines.Add(CreateRepositoryLink());
+            var close = new Button { Content = "OK", IsCancel = true, IsDefault = true,
+                MinWidth = 75, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+            var dialog = new Window { Title = "AppDex update", Width = 430, SizeToContent = SizeToContent.Height,
+                ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Content = new StackPanel { Margin = new Thickness(16), Children = { instructions, close } } };
+            close.Click += delegate { dialog.Close(); };
+            return dialog;
         }
 
         private static bool TryGetStage(out string directory, out string id)

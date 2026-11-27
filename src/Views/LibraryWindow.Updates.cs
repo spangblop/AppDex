@@ -6,6 +6,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Threading;
 
 namespace GameShelf
@@ -134,9 +135,18 @@ namespace GameShelf
                 catch (Exception error)
                 {
                     status.SetResourceReference(ForegroundProperty, "AppDanger");
-                    status.Text = error is OperationCanceledException ? "The update timed out. Try again." :
-                        "Couldn't install the update. " + error.Message;
-                    if (!ReferenceEquals(DrawerContent.Content, panel)) AnnounceError(status.Text);
+                    bool accessDenied = AppUpdateInstaller.IsAccessDenied(error);
+                    string message = accessDenied ? AppUpdateInstaller.AccessDeniedHelp :
+                        error is OperationCanceledException ? "The update timed out. Try again." : "Couldn't install the update. " + error.Message;
+                    status.Text = message;
+                    if (accessDenied)
+                    {
+                        var link = AppUpdateInstaller.CreateRepositoryLink();
+                        link.SetResourceReference(TextElement.ForegroundProperty, "AppAccentText");
+                        status.Inlines.Add(new LineBreak());
+                        status.Inlines.Add(link);
+                    }
+                    if (!ReferenceEquals(DrawerContent.Content, panel)) AnnounceError(message);
                 }
                 finally
                 {
