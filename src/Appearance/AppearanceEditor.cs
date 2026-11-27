@@ -403,10 +403,10 @@ namespace GameShelf
         private void ColorFields(AppearanceOptions options)
         {
             var panel = Card("Palette");
-            var paletteHighlights = new[] { AppearanceTarget.Background, AppearanceTarget.Panels,
+            var paletteHighlights = new[] { AppearanceTarget.Accent, AppearanceTarget.Background, AppearanceTarget.Panels,
                 AppearanceTarget.Controls, AppearanceTarget.Edges, AppearanceTarget.MutedText, AppearanceTarget.InterfaceText,
                 AppearanceTarget.Warnings, AppearanceTarget.Background, AppearanceTarget.TileOutline, AppearanceTarget.ArtworkText };
-            var target = Picker("Color to edit", AppAppearance.ColorNames, 0);
+            var target = Picker("Color to edit", new[] { "Accent" }.Concat(AppAppearance.ColorNames).ToArray(), 0);
             panel.Children.Add(target);
             var wheel = new ColorWheel { Width = 145, Height = 145 };
             AutomationProperties.SetName(wheel, "Color wheel");
@@ -443,7 +443,7 @@ namespace GameShelf
             Action reflect = delegate
             {
                 reflecting = true;
-                wheel.SelectColor(AppAppearance.ReadColor(options.Colors[target.SelectedIndex]));
+                wheel.SelectColor(AppAppearance.ReadColor(target.SelectedIndex == 0 ? preferences.Accent : options.Colors[target.SelectedIndex - 1]));
                 brightness.Value = wheel.Brightness;
                 hex.Text = AppAppearance.Hex(wheel.Color);
                 swatch.Background = new SolidColorBrush(wheel.Color);
@@ -456,7 +456,8 @@ namespace GameShelf
                 brightness.Value = wheel.Brightness;
                 if (!hex.IsKeyboardFocused) hex.Text = AppAppearance.Hex(color);
                 swatch.Background = new SolidColorBrush(color);
-                options.Colors[target.SelectedIndex] = AppAppearance.Hex(color);
+                if (target.SelectedIndex == 0) preferences.Accent = AppAppearance.Hex(color);
+                else options.Colors[target.SelectedIndex - 1] = AppAppearance.Hex(color);
                 AppAppearance.ApplyColors(preferences);
                 reflecting = false;
                 Changed();
