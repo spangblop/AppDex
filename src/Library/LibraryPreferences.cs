@@ -7,6 +7,8 @@ using System.Runtime.Serialization.Json;
 
 namespace GameShelf
 {
+    internal enum StartupMode { LaunchApp, LaunchInTray, None }
+
     [DataContract]
     internal sealed class AppGroup
     {
@@ -34,8 +36,11 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public bool QuitOnWindowClose;
         [DataMember(EmitDefaultValue = false)] public bool SkipQuitConfirmation;
         [DataMember(EmitDefaultValue = false)] public bool StartupInTray;
-        [DataMember(EmitDefaultValue = false)] public bool ReducedTrayMemory;
+        [DataMember(EmitDefaultValue = false)] public StartupMode? StartupChoice;
+        [DataMember(EmitDefaultValue = false)] public bool StartupWarningAcknowledged;
+        [DataMember(Name = "ReducedTrayMemory", EmitDefaultValue = false)] private bool? reducedTrayMemory;
         [DataMember(EmitDefaultValue = false)] public bool ShowDragTargets;
+        [DataMember(EmitDefaultValue = false)] public bool ShowDragFrameTiming;
         [DataMember(EmitDefaultValue = false)] public bool ShowTrayMemory;
         [DataMember(EmitDefaultValue = false)] public bool UiSoundsEnabled;
         [DataMember(EmitDefaultValue = false)] public int? QuickLaunchModifiers;
@@ -45,6 +50,12 @@ namespace GameShelf
         [DataMember] public List<string> Order = new List<string>();
         [DataMember] public List<string> Pins = new List<string>();
         [DataMember] public List<AppGroup> Groups = new List<AppGroup>();
+
+        internal bool ReducedTrayMemory
+        {
+            get => reducedTrayMemory ?? true;
+            set => reducedTrayMemory = value;
+        }
 
         private static DataContractJsonSerializer Serializer() { return new DataContractJsonSerializer(typeof(LibraryPreferences)); }
 
@@ -58,7 +69,9 @@ namespace GameShelf
                     if (prefs != null && prefs.Order != null && prefs.Pins != null && prefs.Groups != null)
                     {
                         prefs.Sort = Math.Max(0, Math.Min(2, prefs.Sort));
-                        prefs.Source = Math.Max(0, Math.Min(3, prefs.Source));
+                        prefs.Source = Math.Max(0, Math.Min(4, prefs.Source));
+                        if (prefs.StartupChoice.HasValue && !Enum.IsDefined(typeof(StartupMode), prefs.StartupChoice.Value))
+                            prefs.StartupChoice = null;
                         if (prefs.Appearance == null) prefs.Appearance = AppAppearance.Defaults(prefs.Style);
                         prefs.Appearance.Normalize();
                         prefs.Style = 0;

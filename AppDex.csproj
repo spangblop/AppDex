@@ -50,6 +50,7 @@
     <Compile Include="src\Views\LibraryWindow.Sync.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Shortcuts.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Updates.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
+    <Compile Include="src\Views\LibraryWindow.UpdateHistory.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Views\LibraryWindow.Controller.cs"><DependentUpon>LibraryWindow.xaml</DependentUpon></Compile>
     <Compile Include="src\Appearance\ColorWheel.cs" />
     <Compile Include="src\Views\Controls\TileHover.cs" />

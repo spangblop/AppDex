@@ -85,8 +85,12 @@ namespace GameShelf
                 };
                 menu.Items.Add("Open " + AppBuild.Name, null, delegate { ShowLibrary(); });
                 var quickItem = menu.Items.Add("Quick launch", null, delegate { ShowQuickLaunch(); });
-                Action updateQuickLabel = () => quickItem.Text = hotkeys.QuickLaunchRegistered
-                    ? "Quick launch (" + hotkeys.QuickLaunchLabel + ")" : "Quick launch";
+                Action updateQuickLabel = delegate
+                {
+                    string shortcut = hotkeys.QuickLaunchRegistered ? hotkeys.QuickLaunchLabel : null;
+                    quickItem.Text = shortcut == null ? "Quick launch" : "Quick launch (" + shortcut + ")";
+                    window.SetQuickLaunchHint(shortcut);
+                };
                 updateQuickLabel();
                 window.RegisterQuickShortcut = (modifiers, key) =>
                 {
@@ -97,6 +101,7 @@ namespace GameShelf
                 menu.Items.Add("Quit " + AppBuild.Name, null, delegate { quit(); });
                 window.QuitRequested += quit;
                 window.ResetActivityRequested += ResetGameActivity;
+                window.WebsiteOpened += RecordWebsiteOpen;
                 window.ValidateGameShortcut = (game, modifiers, key) => hotkeys.Validate(window.Games, game, modifiers, key);
                 window.ValidateGameShortcuts = (game, draft) => hotkeys.ValidateDraft(window.Games, game, draft);
                 window.ResumeGame = ResumeRunningGame;
@@ -180,7 +185,8 @@ namespace GameShelf
         {
             if (exiting) return;
             if (quickLaunch != null) { quickLaunch.Close(); return; }
-            quickLaunch = new QuickLaunchWindow(window.Games, LaunchFromShortcut);
+            quickLaunch = new QuickLaunchWindow(window.Games, LaunchFromShortcut,
+                game => Task.Run(() => GameProcesses.RequestClose(game, session)));
             quickLaunch.Closed += delegate { quickLaunch = null; };
             quickLaunch.Show();
         }
@@ -253,6 +259,18 @@ namespace GameShelf
             SampleActivity(out _);
             book.ResetGame(game.Id, file);
             window.ShowActivity(book);
+        }
+
+        private void RecordWebsiteOpen(Game game)
+        {
+            try
+            {
+                if (book == null) book = ActivityBook.Load(file);
+                book.RecordWebsiteOpen(game.Id);
+                book.Save(file);
+                window.ShowActivity(book);
+            }
+            catch (Exception error) { window.Announce("Couldn't record website launch. " + error.Message); }
         }
     }
 }

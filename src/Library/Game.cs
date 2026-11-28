@@ -17,8 +17,9 @@ namespace GameShelf
         public string Id { get; private set; }
         public string Name { get { return Settings.Name; } }
         public string Platform { get; private set; }
-        public string Target { get { return Custom ? Settings.Executable : defaultTarget; } }
-        public string Source { get { return SteamId != 0 ? "Steam" : Settings.EpicUri != null ? "Epic Games" : "Windows"; } }
+        public string Target { get { return Settings.WebUrl ?? (Custom ? Settings.Executable : defaultTarget); } }
+        public string Source { get { return IsWebsite ? "Web" : SteamId != 0 ? "Steam" : Settings.EpicUri != null ? "Epic Games" : "Windows"; } }
+        public bool IsWebsite => Settings.WebUrl != null;
         public string SourceStatus { get { return Launching ? Source + " · Opening" : Playing ? Source + " · Playing" :
             IsInstalled == false ? "Not installed" : Source; } }
         public uint SteamId { get { uint id; return defaultTarget != null && defaultTarget.StartsWith("steam://", StringComparison.Ordinal) &&
@@ -63,6 +64,20 @@ namespace GameShelf
         internal static Game CustomGame(GameSettings settings)
         {
             return new Game(settings.Name, "WINDOWS", settings.Executable, settings.Id, "", true);
+        }
+
+        internal static Game WebGame(GameSettings settings)
+        {
+            return new Game(settings.Name, "WEB", null, settings.Id, custom: true);
+        }
+
+        internal static string WebsiteUrl(string value)
+        {
+            if (!Uri.TryCreate((value ?? "").Trim(), UriKind.Absolute, out Uri uri) ||
+                (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp) ||
+                string.IsNullOrEmpty(uri.Host) || uri.UserInfo.Length != 0)
+                throw new ArgumentException("Enter a website URL beginning with https:// or http://.");
+            return uri.AbsoluteUri;
         }
 
         internal static Game SteamGame(GameSettings settings, string root)
@@ -174,6 +189,7 @@ namespace GameShelf
             if (Playing != active)
             {
                 Playing = active;
+                Changed(nameof(Playing));
                 Changed("SourceStatus");
                 Changed("AccessibleName");
             }
@@ -191,6 +207,7 @@ namespace GameShelf
 
         internal static ProcessStartInfo StartInfo(Game game, GameSettings settings)
         {
+            if (game.IsWebsite) return new ProcessStartInfo(WebsiteUrl(settings.WebUrl)) { UseShellExecute = true };
             if (game.Custom)
                 return new ProcessStartInfo(settings.Executable, settings.Arguments ?? "") {
                     WorkingDirectory = Path.GetDirectoryName(settings.Executable), UseShellExecute = true };

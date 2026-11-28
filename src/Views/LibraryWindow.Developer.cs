@@ -27,11 +27,16 @@ namespace GameShelf
         private bool TryOpenDeveloperSettings(int clickCount, ModifierKeys modifiers)
         {
             if (clickCount != 3 || (modifiers & ModifierKeys.Shift) == 0) return false;
+            OpenDeveloperSettings();
+            return true;
+        }
 
-            var reducedMemory = DeveloperToggle("Reduced tray memory (experimental)", preferences.ReducedTrayMemory,
-                enabled => preferences.ReducedTrayMemory = enabled);
+        private void OpenDeveloperSettings()
+        {
             var dragTargets = DeveloperToggle("Show drag targets", preferences.ShowDragTargets,
                 enabled => preferences.ShowDragTargets = enabled);
+            var frameTiming = DeveloperToggle("Drag frame timing", preferences.ShowDragFrameTiming,
+                enabled => preferences.ShowDragFrameTiming = enabled);
             var trayMemory = DeveloperToggle("Show tray memory", preferences.ShowTrayMemory,
                 enabled => preferences.ShowTrayMemory = enabled);
             var memory = DeveloperNote("");
@@ -47,13 +52,19 @@ namespace GameShelf
             toast.HorizontalAlignment = HorizontalAlignment.Left;
             toast.Margin = new Thickness(0, 10, 0, 0);
             toast.Click += delegate { ShowErrorToast(" Working notification that tells you things aren't working"); };
+            var history = SmallButton("Update history");
+            history.HorizontalAlignment = HorizontalAlignment.Left;
+            history.Margin = new Thickness(0, 10, 0, 0);
+            history.Click += async delegate { await OpenUpdateHistory(); };
+            var feedback = SmallButton("Feature request");
+            feedback.HorizontalAlignment = HorizontalAlignment.Left;
+            feedback.Margin = new Thickness(0, 10, 0, 0);
+            feedback.Click += delegate { OpenFeatureRequest(); };
 
             var panel = new StackPanel { Children = {
-                reducedMemory,
-                DeveloperNote("requires restart, Closes the library window process when app goes to tray, play time and launch hotkeys stay active"),
                 dragTargets,
                 DeveloperNote("Cyan shows reorder slots in Custom order, green shows grouping zones, and amber shows pin targets."),
-                trayMemory, memory, check, status, toast
+                frameTiming, trayMemory, memory, check, status, history, toast, feedback
             } };
             Action refreshMemory = delegate
             {
@@ -74,8 +85,7 @@ namespace GameShelf
             ShowPanel("Developer settings", new ScrollViewer {
                 Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
-            }, reducedMemory);
-            return true;
+            }, dragTargets);
         }
 
         private CheckBox DeveloperToggle(string label, bool value, Action<bool> save)
@@ -93,6 +103,68 @@ namespace GameShelf
             return note;
         }
 
+        private void OpenFeatureRequest()
+        {
+            var title = FeatureRequestField("Title", 120);
+            var details = FeatureRequestField("What would you like AppDex to do?", 1500);
+            details.AcceptsReturn = true;
+            details.TextWrapping = TextWrapping.Wrap;
+            details.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
+            details.Height = 112;
+            var back = SmallButton("Back");
+            back.Margin = new Thickness(0, 0, 7, 5);
+            back.Click += delegate { OpenDeveloperSettings(); };
+            var review = SmallButton("Review on GitHub");
+            review.Margin = new Thickness(0, 0, 0, 5);
+            review.SetResourceReference(BackgroundProperty, "AppAccent");
+            review.SetResourceReference(ForegroundProperty, "AppAccentInk");
+            var status = DeveloperNote("");
+            status.SetResourceReference(TextBlock.ForegroundProperty, "AppDanger");
+            AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
+            var fields = new StackPanel { Children = {
+                new Label { Content = "Title", Target = title }, title,
+                new Label { Content = "What would you like AppDex to do?", Target = details, Margin = new Thickness(0, 7, 0, 0) }, details,
+                new TextBlock { Text = "You’ll need to sign in to GitHub to submit the request. Submitted issues are public.",
+                    TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 12) },
+                new WrapPanel { Children = { back, review } }, status
+            } };
+            review.Click += delegate
+            {
+                try
+                {
+                    using (Process.Start(new ProcessStartInfo(FeatureRequestUrl(title.Text, details.Text)) { UseShellExecute = true })) { }
+                    status.Text = "";
+                }
+                catch (Exception error) when (error is ArgumentException || error is Win32Exception || error is InvalidOperationException)
+                {
+                    status.Text = error.Message;
+                }
+            };
+            ShowPanel("Feature request", new ScrollViewer { Content = fields, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, title);
+        }
+
+        private static TextBox FeatureRequestField(string name, int maxLength)
+        {
+            var field = new TextBox { MaxLength = maxLength, Padding = new Thickness(7, 5, 7, 5) };
+            field.SetResourceReference(Control.ForegroundProperty, "AppText");
+            field.SetResourceReference(Control.BackgroundProperty, "AppControl");
+            field.SetResourceReference(Control.BorderBrushProperty, "AppEdge");
+            field.SetResourceReference(TextBox.CaretBrushProperty, "AppText");
+            AutomationProperties.SetName(field, name);
+            return field;
+        }
+
+        private static string FeatureRequestUrl(string title, string details)
+        {
+            if (string.IsNullOrWhiteSpace(title) || string.IsNullOrWhiteSpace(details))
+                throw new ArgumentException("Enter a title and describe your request.");
+            string url = "https://github.com/spangblop/AppDex/issues/new?title=" +
+                Uri.EscapeDataString(title.Trim()) + "&body=" + Uri.EscapeDataString(details.Trim());
+            if (url.Length > 7500) throw new ArgumentException("Shorten the request before opening the GitHub draft.");
+            return url;
+        }
+
         private async Task RunUpdateDiagnostics(Button button, TextBlock status)
         {
             button.IsEnabled = false;
@@ -106,7 +178,7 @@ namespace GameShelf
                     var report = await AppUpdates.CheckForDiagnostics(timeout.Token);
                     var newest = report.NewestInstallable?.Version;
                     string result = newest == null ? "No installable release package was found."
-                        : newest > new Version(AppUpdates.CurrentVersion.ToString(3)) ? "An update is available."
+                        : newest > AppUpdates.BuildVersion ? "An update is available."
                         : "No newer installable release is available.";
                     status.Text = installed + "\nNewest published release " + (report.NewestPublished?.ToString(3) ?? "none")
                         + "\nNewest installable package " + (newest?.ToString(3) ?? "none") + "\n" + result;

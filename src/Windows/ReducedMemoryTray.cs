@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
@@ -7,6 +8,7 @@ using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Forms = System.Windows.Forms;
 
 namespace GameShelf
@@ -26,6 +28,8 @@ namespace GameShelf
         private readonly EventWaitHandle reveal;
         private readonly MemoryMappedViewAccessor activityHandoff;
         private readonly string viewId;
+        private readonly HashSet<string> syncingStores = new HashSet<string>();
+        private readonly Dictionary<string, string> syncErrors = new Dictionary<string, string>();
         private LaunchHotkeys hotkeys;
         private GameCatalog catalog;
         private ActivityBook activity;
@@ -33,6 +37,7 @@ namespace GameShelf
         private long lastSave;
         private Process window;
         private bool stopping;
+        private bool syncSteam, syncEpic;
 
         private ReducedMemoryTray(Forms.NotifyIcon tray, Forms.ToolStripItem quickItem, Forms.Timer timer,
             EventWaitHandle reveal, MemoryMappedViewAccessor activityHandoff, string viewId)
@@ -109,6 +114,9 @@ namespace GameShelf
         {
             catalog = new GameCatalog(AppBuild.DataDirectory);
             var preferences = LibraryPreferences.Load(catalog.PreferencesFile);
+            syncSteam = preferences.SyncSteam;
+            syncEpic = preferences.SyncEpic;
+            syncErrors.Clear();
             hotkeys = new LaunchHotkeys(() => ShowWindow("quick"), game => OpenGame(game, null),
                 preferences.QuickLaunchModifiers ?? LaunchHotkeys.DefaultModifiers,
                 preferences.QuickLaunchKey ?? LaunchHotkeys.DefaultKey, useNativeWindow: true);
@@ -179,8 +187,47 @@ namespace GameShelf
 
         private void Tick()
         {
-            if (window == null) Record(false);
+            if (window == null)
+            {
+                Record(false);
+                PollLibrarySync();
+            }
             else if (window.HasExited) WindowExited();
+        }
+
+        private void PollLibrarySync()
+        {
+            if (catalog == null || catalog.LoadError != null) return;
+            if (syncSteam)
+                RefreshStore("Steam", SteamLocation.ScanInstalled, (target, scan) =>
+                {
+                    if (scan.Scan != null) target.SyncSteam(scan.Scan, scan.Client);
+                });
+            if (syncEpic)
+                RefreshStore("Epic Games", AppDiscovery.ScanInstalledEpic, (target, scan) => target.SyncEpic(scan.Apps, scan.Complete));
+        }
+
+        private async void RefreshStore<T>(string source, Func<T> scan, Action<GameCatalog, T> apply)
+        {
+            if (!syncingStores.Add(source)) return;
+            var target = catalog;
+            try
+            {
+                var result = await Task.Run(scan);
+                // Reopening the library hands catalog writes over to the window process.
+                if (target != catalog) return;
+                apply(target, result);
+                syncErrors.Remove(source);
+            }
+            catch (Exception error)
+            {
+                if (target == catalog && (!syncErrors.TryGetValue(source, out string previous) || previous != error.Message))
+                {
+                    syncErrors[source] = error.Message;
+                    Notify("Couldn't sync " + source + ". " + error.Message);
+                }
+            }
+            finally { syncingStores.Remove(source); }
         }
 
         private void WindowExited()

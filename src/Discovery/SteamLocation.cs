@@ -83,6 +83,14 @@ namespace GameShelf
 
         internal string FindClient() { return ResolveClient(Candidates()); }
 
+        internal static (SteamScan Scan, string Client) ScanInstalled()
+        {
+            var location = Read(PreferencesFile);
+            string client = location.FindClient();
+            if (client == null && string.IsNullOrEmpty(location.LibraryFolder)) return (null, null);
+            return (SteamLibrary.ScanInstalled(client, location.LibraryFolder), client);
+        }
+
         internal string ResolveClient(IEnumerable<string> candidates)
         {
             return new[] { ClientFolder }.Concat(candidates).FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)

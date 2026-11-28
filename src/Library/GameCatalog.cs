@@ -32,6 +32,7 @@ namespace GameShelf
         [DataMember(EmitDefaultValue = false)] public bool Removed;
         [DataMember(EmitDefaultValue = false)] public string EpicUri;
         [DataMember(EmitDefaultValue = false)] public string EpicArguments;
+        [DataMember(EmitDefaultValue = false)] public string WebUrl;
         [DataMember(EmitDefaultValue = false)] public int ShortcutModifiers;
         [DataMember(EmitDefaultValue = false)] public int ShortcutKey;
         [DataMember(EmitDefaultValue = false)] public string Aliases;
@@ -50,7 +51,9 @@ namespace GameShelf
     {
         private readonly string directory;
         private string FileName { get { return Path.Combine(directory, "library.json"); } }
+        private string WebsitesFile { get { return Path.Combine(directory, "websites.json"); } }
         private List<GameSettings> saved = new List<GameSettings>();
+        private List<GameSettings> websites = new List<GameSettings>();
         public List<Game> Games { get; private set; }
         public string LoadError { get; private set; }
         internal string PreferencesFile { get { return Path.Combine(directory, "preferences.json"); } }
@@ -76,7 +79,7 @@ namespace GameShelf
                 string steamRoot = entries.Any(s => s != null && s.SteamAppId > 0) ? SteamLibrary.Locate() : null;
                 foreach (var entry in entries)
                 {
-                    if (entry == null || string.IsNullOrWhiteSpace(entry.Name) || !ids.Add(entry.Id))
+                    if (entry == null || entry.WebUrl != null || string.IsNullOrWhiteSpace(entry.Name) || !ids.Add(entry.Id))
                         throw new InvalidDataException("Invalid app entry.");
                     stock.TryGetValue(entry.Id ?? "", out Game game);
                     if (entry.Removed) { if (game != null) loaded.Remove(game); continue; }
@@ -105,14 +108,7 @@ namespace GameShelf
                         loaded.Add(game = Game.CustomGame(entry));
                     }
                     else if (!loaded.Contains(game)) loaded.Add(game);
-                    if (entry.Picture != null)
-                    {
-                        Guid imageId;
-                        if (entry.Picture != Path.GetFileName(entry.Picture) ||
-                            Path.GetExtension(entry.Picture) != ".png" ||
-                            !Guid.TryParseExact(Path.GetFileNameWithoutExtension(entry.Picture), "N", out imageId))
-                            throw new InvalidDataException("Invalid app picture.");
-                    }
+                    ValidatePictureName(entry.Picture);
                     game.Apply(entry, PictureLoader(entry.Picture));
                 }
                 Games = loaded;
@@ -122,6 +118,48 @@ namespace GameShelf
             catch (DirectoryNotFoundException) { }
             catch (Exception error) { LoadError = "Couldn't load the saved library. " + error.Message; }
             if (Games == null) Games = legacy;
+            LoadWebsites();
+        }
+
+        // Separate website records keep the executable library readable by older AppDex builds.
+        private void LoadWebsites()
+        {
+            if (!File.Exists(WebsitesFile)) return;
+            try
+            {
+                List<GameSettings> entries;
+                using (var input = File.OpenRead(WebsitesFile))
+                    entries = (List<GameSettings>)Serializer().ReadObject(input);
+                if (entries == null) throw new InvalidDataException("Invalid website library.");
+                var ids = new HashSet<string>();
+                var loaded = new List<Game>();
+                foreach (var entry in entries)
+                {
+                    if (entry == null || string.IsNullOrWhiteSpace(entry.Name) || entry.Id == null ||
+                        !entry.Id.StartsWith("web-", StringComparison.Ordinal) ||
+                        !Guid.TryParseExact(entry.Id.Substring(4), "N", out _) || !ids.Add(entry.Id) ||
+                        entry.Executable != null || entry.EpicUri != null || entry.SteamAppId != 0 || entry.LaunchProfiles.Any())
+                        throw new InvalidDataException("Invalid website entry.");
+                    entry.WebUrl = Game.WebsiteUrl(entry.WebUrl);
+                    ValidatePictureName(entry.Picture);
+                    var game = Game.WebGame(entry);
+                    game.Apply(entry, PictureLoader(entry.Picture));
+                    loaded.Add(game);
+                }
+                websites = entries;
+                Games.AddRange(loaded);
+            }
+            catch (Exception error)
+            {
+                if (LoadError == null) LoadError = "Couldn't load the saved websites. " + error.Message;
+            }
+        }
+
+        private static void ValidatePictureName(string name)
+        {
+            if (name != null && (name != Path.GetFileName(name) || Path.GetExtension(name) != ".png" ||
+                !Guid.TryParseExact(Path.GetFileNameWithoutExtension(name), "N", out _)))
+                throw new InvalidDataException("Invalid app picture.");
         }
 
         private static DataContractJsonSerializer Serializer()
@@ -178,11 +216,24 @@ namespace GameShelf
             if (LoadError != null) throw new InvalidOperationException(LoadError);
             var draft = input.Copy();
             draft.Name = (draft.Name ?? "").Trim();
-            if (draft.Name.Length == 0) throw new ArgumentException("Enter a app name.");
+            if (draft.Name.Length == 0) throw new ArgumentException("Enter an app name.");
             var existing = Games.FirstOrDefault(g => g.Id == draft.Id);
-            ValidateProfiles(draft, existing);
+            bool website = existing?.IsWebsite ?? draft.WebUrl != null;
             bool custom = existing == null || existing.Custom;
-            if (custom)
+            if (website)
+            {
+                draft.WebUrl = Game.WebsiteUrl(draft.WebUrl);
+                draft.Executable = draft.Arguments = null;
+                draft.Profiles = null;
+                draft.EpicUri = draft.EpicArguments = null;
+                draft.SteamAppId = 0;
+            }
+            else
+            {
+                draft.WebUrl = null;
+                ValidateProfiles(draft, existing);
+            }
+            if (custom && !website)
             {
                 var path = Environment.ExpandEnvironmentVariables((draft.Executable ?? "").Trim().Trim('"'));
                 if (!Path.IsPathRooted(path) || !string.Equals(Path.GetExtension(path), ".exe", StringComparison.OrdinalIgnoreCase))
@@ -200,15 +251,16 @@ namespace GameShelf
                 draft.EpicArguments = existing.Settings.EpicArguments;
             }
             else draft.Executable = null;
-            if (existing == null) draft.Id = "user-" + Guid.NewGuid().ToString("N");
-            Game game = existing ?? Game.CustomGame(draft);
+            if (existing == null) draft.Id = (website ? "web-" : "user-") + Guid.NewGuid().ToString("N");
+            Game game = existing ?? (website ? Game.WebGame(draft) : Game.CustomGame(draft));
             string oldPicture = game.Settings.Picture;
             // Only saved picture names are retained. Newly chosen files are imported before the catalog is committed.
             draft.Picture = draft.Picture == oldPicture ? oldPicture : null;
             string imported = null;
             Directory.CreateDirectory(directory);
-            var entries = saved.Where(s => s.Id != draft.Id).ToList();
-            int previous = saved.FindIndex(s => s.Id == draft.Id);
+            var source = website ? websites : saved;
+            var entries = source.Where(s => s.Id != draft.Id).ToList();
+            int previous = source.FindIndex(s => s.Id == draft.Id);
             entries.Insert(previous < 0 ? entries.Count : previous, draft);
             try
             {
@@ -222,7 +274,7 @@ namespace GameShelf
                     using (var output = new FileStream(imported, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                     { encoder.Save(output); output.Flush(true); }
                 }
-                WriteEntries(entries);
+                WriteEntries(entries, website);
             }
             catch
             {
@@ -231,7 +283,7 @@ namespace GameShelf
             }
             game.Apply(draft, PictureLoader(draft.Picture));
             if (existing == null) Games.Add(game);
-            if (oldPicture != null && !saved.Any(s => s.Picture == oldPicture)) DiscardFile(PicturePath(oldPicture));
+            DiscardUnusedPicture(oldPicture);
             return game;
         }
 
@@ -424,27 +476,33 @@ namespace GameShelf
         internal void Remove(Game game)
         {
             if (LoadError != null) throw new InvalidOperationException(LoadError);
-            var entries = saved.Where(s => s.Id != game.Id).ToList();
-            if (game.SteamId != 0 || game.Settings.EpicUri != null || Game.Library().Any(g => g.Id == game.Id))
+            var entries = (game.IsWebsite ? websites : saved).Where(s => s.Id != game.Id).ToList();
+            if (!game.IsWebsite && (game.SteamId != 0 || game.Settings.EpicUri != null || Game.Library().Any(g => g.Id == game.Id)))
                 entries.Add(new GameSettings { Id = game.Id, Name = game.Name, Removed = true,
                     SteamAppId = game.SteamId, EpicUri = game.Settings.EpicUri });
-            WriteEntries(entries);
+            WriteEntries(entries, game.IsWebsite);
             Games.Remove(game);
-            string picture = game.Settings.Picture;
-            if (picture != null && !saved.Any(s => s.Picture == picture)) DiscardFile(PicturePath(picture));
+            DiscardUnusedPicture(game.Settings.Picture);
         }
 
-        private void WriteEntries(List<GameSettings> entries)
+        private void DiscardUnusedPicture(string picture)
+        {
+            if (picture != null && !saved.Concat(websites).Any(entry => entry.Picture == picture)) DiscardFile(PicturePath(picture));
+        }
+
+        private void WriteEntries(List<GameSettings> entries, bool website = false)
         {
             Directory.CreateDirectory(directory);
-            string temp = FileName + ".tmp";
+            string target = website ? WebsitesFile : FileName;
+            string temp = target + ".tmp";
             try
             {
                 using (var output = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
                 { Serializer().WriteObject(output, entries); output.Flush(true); }
-                if (File.Exists(FileName)) File.Replace(temp, FileName, null);
-                else File.Move(temp, FileName);
-                saved = entries;
+                if (File.Exists(target)) File.Replace(temp, target, null);
+                else File.Move(temp, target);
+                if (website) websites = entries;
+                else saved = entries;
             }
             finally { DiscardFile(temp); }
         }

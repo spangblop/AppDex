@@ -23,6 +23,7 @@ namespace GameShelf
         [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
         [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
         [DllImport("user32.dll")] private static extern bool ShowWindowAsync(IntPtr window, int command);
+        [DllImport("user32.dll", SetLastError = true)] private static extern bool PostMessage(IntPtr window, uint message, IntPtr first, IntPtr second);
 
         public static long AwakeTicks()
         {
@@ -126,7 +127,14 @@ namespace GameShelf
             var known = Read(session, paths).Where(item => item.GameId == game.Id)
                 .ToLookup(item => item.ProcessId, item => item.StartedUtcTicks);
             string directory = game.SteamId == 0 ? null : SteamLibrary.FindInstalled(game.SteamId)?.Directory;
-            if (directory != null) directory = directory.TrimEnd('\\') + "\\";
+            return FindMatchingWindow(session, known, directory);
+        }
+
+        private static IntPtr FindMatchingWindow(int session, ILookup<int, long> known, string directory)
+        {
+            if (directory != null)
+                directory = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                    + Path.DirectorySeparatorChar;
 
             IntPtr steamWindow = IntPtr.Zero;
             var processes = Process.GetProcesses();
@@ -157,6 +165,15 @@ namespace GameShelf
             if (window == IntPtr.Zero) return false;
             if (IsIconic(window)) ShowWindowAsync(window, 9);
             return SetForegroundWindow(window);
+        }
+
+        internal static bool RequestClose(Game game, int session)
+        {
+            IntPtr target = FindRunningWindow(game, session);
+            if (target == IntPtr.Zero) return false;
+            if (!PostMessage(target, 0x0010, IntPtr.Zero, IntPtr.Zero)) // WM_CLOSE
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            return true;
         }
     }
 }

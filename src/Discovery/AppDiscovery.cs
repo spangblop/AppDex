@@ -43,6 +43,12 @@ namespace GameShelf
             return ScanEpic(folder, out _);
         }
 
+        internal static (List<ImportCandidate> Apps, bool Complete) ScanInstalledEpic()
+        {
+            var apps = ScanEpic(EpicFolder, out bool complete);
+            return (apps, complete);
+        }
+
         private static bool IsEpicFileError(Exception error)
         {
             return error is IOException || error is UnauthorizedAccessException || error is ArgumentException ||

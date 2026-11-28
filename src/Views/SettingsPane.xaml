@@ -126,23 +126,6 @@
           <StackPanel>
             <Border Style="{StaticResource SettingsCard}">
               <StackPanel>
-                <TextBlock Text="Startup" Style="{StaticResource SettingsHeading}"/>
-                <CheckBox x:Name="StartupToggle" Content="Launch on system startup" Style="{StaticResource SettingSwitch}"
-                    Checked="ChangeStartup" Unchecked="ChangeStartup" AutomationProperties.HelpText="Launch AppDex when you sign in to Windows."/>
-                <StackPanel x:Name="StartupModeRow" Visibility="Collapsed" Margin="14,3,4,5">
-                  <Label Content="Startup mode" Target="{Binding ElementName=StartupModePicker}" Foreground="{DynamicResource AppMuted}"
-                      Padding="0,0,0,4"/>
-                  <ComboBox x:Name="StartupModePicker" Height="32" AutomationProperties.Name="Startup mode" SelectionChanged="ChangeBehavior">
-                    <ComboBoxItem Content="Open window"/>
-                    <ComboBoxItem Content="System tray only"/>
-                  </ComboBox>
-                </StackPanel>
-                <TextBlock x:Name="Feedback" Visibility="Collapsed" TextWrapping="Wrap" Foreground="{DynamicResource AppDanger}"
-                    AutomationProperties.LiveSetting="Polite" Margin="5,5,0,2"/>
-              </StackPanel>
-            </Border>
-            <Border Style="{StaticResource SettingsCard}">
-              <StackPanel>
                 <TextBlock Text="Launching apps" Style="{StaticResource SettingsHeading}"/>
                 <CheckBox x:Name="ConfirmLaunchToggle" Content="Confirm before launching apps" Style="{StaticResource SettingSwitch}"
                     Checked="ChangeBehavior" Unchecked="ChangeBehavior"/>
@@ -182,6 +165,12 @@
                 <TextBlock x:Name="OnCloseWarning" Style="{StaticResource PlaytimeWarning}" AutomationProperties.LiveSetting="Polite"/>
                 <CheckBox x:Name="ConfirmQuitToggle" Content="Confirm before quitting" Style="{StaticResource SettingSwitch}"
                     Visibility="Collapsed" Checked="ChangeBehavior" Unchecked="ChangeBehavior"/>
+                <StackPanel x:Name="TrayMemorySettings" Margin="0,6,0,0">
+                  <CheckBox x:Name="ReducedTrayMemoryToggle" Content="Reduce tray memory" Style="{StaticResource SettingSwitch}"
+                      Checked="ChangeTrayMemory" Unchecked="ChangeTrayMemory"/>
+                  <TextBlock Text="Closes the library window process in the tray. Playtime tracking and launch hotkeys stay active. Requires an AppDex restart."
+                      Margin="4,0,4,0" TextWrapping="Wrap" Foreground="{DynamicResource AppMuted}"/>
+                </StackPanel>
               </StackPanel>
             </Border>
             <Border Style="{StaticResource SettingsCard}">

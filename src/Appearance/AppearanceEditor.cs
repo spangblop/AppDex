@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -15,7 +17,8 @@ namespace GameShelf
     internal sealed class AppearanceEditor : DockPanel
     {
         private static readonly string[] Sections = { "Presets", "Tiles & artwork", "Typography", "Colors", "Library layout", "Motion & effects" };
-        private static readonly string[] FontsOnPc = Fonts.SystemFontFamilies.Select(font => font.Source)
+        private static readonly string[] FontsOnPc = Fonts.SystemFontFamilies.Select(font => font.Source).Concat(new[] { "Papyrus" })
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
             .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase).ToArray();
 
         private readonly LibraryPreferences preferences;
@@ -397,7 +400,21 @@ namespace GameShelf
         private void Font(StackPanel panel, string label, string current, Action<string> set)
         {
             var choices = new[] { current }.Concat(FontsOnPc).Distinct(StringComparer.CurrentCultureIgnoreCase).ToArray();
-            Choice(panel, label, choices, 0, index => set(choices[index]));
+            var sample = new FrameworkElementFactory(typeof(TextBlock));
+            sample.SetBinding(TextBlock.TextProperty, new Binding("Name"));
+            sample.SetBinding(TextBlock.FontFamilyProperty, new Binding("Family"));
+            var picker = new ComboBox { ItemsSource = choices.Select(name => new { Name = name, Family = new FontFamily(name) }).ToArray(),
+                SelectedIndex = 0, Height = 32, MaxDropDownHeight = 250 };
+            picker.ItemTemplate = new DataTemplate { VisualTree = sample };
+            TextSearch.SetTextPath(picker, "Name");
+            AutomationProperties.SetName(picker, label);
+            LabelField(panel, label, picker, picker);
+            picker.SelectionChanged += delegate
+            {
+                if (picker.SelectedIndex < 0) return;
+                set(choices[picker.SelectedIndex]);
+                Changed();
+            };
         }
 
         private void ColorFields(AppearanceOptions options)
@@ -602,8 +619,13 @@ namespace GameShelf
                 TickFrequency = tick, SmallChange = tick, LargeChange = tick * 10, IsSnapToTickEnabled = true };
             slider.SetResourceReference(StyleProperty, "SettingSlider");
             AutomationProperties.SetName(slider, label);
-            var readout = new TextBlock { Margin = new Thickness(8, 0, 0, 0) };
-            readout.SetResourceReference(TextBlock.ForegroundProperty, "AppAccentText");
+            var readout = new TextBox { Width = 66, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(4, 1, 4, 1),
+                TextAlignment = TextAlignment.Right };
+            readout.SetResourceReference(Control.ForegroundProperty, "AppAccentText");
+            readout.SetResourceReference(Control.BackgroundProperty, "AppControl");
+            readout.SetResourceReference(Control.BorderBrushProperty, "AppEdge");
+            readout.SetResourceReference(TextBox.CaretBrushProperty, "AppText");
+            AutomationProperties.SetName(readout, label + " value");
             SetDock(readout, Dock.Right);
             var header = new DockPanel { Margin = new Thickness(0, 5, 0, 0) };
             header.Children.Add(readout);
@@ -616,8 +638,22 @@ namespace GameShelf
                 HighlightChanged?.Invoke(targetProvider == null ? target : targetProvider());
             };
             row.MouseLeave += delegate { if (ReferenceEquals(highlightedRow, row)) ClearHighlight(); };
+            bool percentage = format != null;
             if (format == null) format = number => number.ToString("0.##", CultureInfo.CurrentCulture);
             readout.Text = format(value);
+            Action applyNumber = delegate
+            {
+                if (TryReadSliderValue(readout.Text, percentage, min, max, tick, out double typed))
+                    slider.Value = typed;
+                readout.Text = format(slider.Value);
+            };
+            readout.GotKeyboardFocus += delegate { readout.SelectAll(); };
+            readout.LostKeyboardFocus += delegate { applyNumber(); };
+            readout.PreviewKeyDown += (sender, e) =>
+            {
+                if (e.Key == Key.Enter) { applyNumber(); readout.SelectAll(); e.Handled = true; }
+                else if (e.Key == Key.Escape) { readout.Text = format(slider.Value); slider.Focus(); e.Handled = true; }
+            };
             slider.ValueChanged += delegate
             {
                 readout.Text = format(slider.Value);
@@ -627,6 +663,23 @@ namespace GameShelf
             return slider;
         }
 
+        private static bool TryReadSliderValue(string text, bool percentage, double min, double max, double tick, out double value)
+        {
+            text = text.Trim();
+            if (percentage)
+            {
+                string symbol = CultureInfo.CurrentCulture.NumberFormat.PercentSymbol;
+                if (text.EndsWith(symbol, StringComparison.Ordinal)) text = text.Substring(0, text.Length - symbol.Length).TrimEnd();
+                else if (text.EndsWith("%", StringComparison.Ordinal)) text = text.Substring(0, text.Length - 1).TrimEnd();
+            }
+            if ((!double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) &&
+                !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value)) ||
+                double.IsNaN(value) || double.IsInfinity(value)) return false;
+            if (percentage) value /= 100;
+            value = Math.Max(min, Math.Min(max, value));
+            value = Math.Max(min, Math.Min(max, min + Math.Round((value - min) / tick, MidpointRounding.AwayFromZero) * tick));
+            return true;
+        }
         private static void LabelField(StackPanel panel, string label, Control control, UIElement field)
         {
             var caption = new Label { Content = label, Target = control, Padding = new Thickness(0, 6, 0, 4) };

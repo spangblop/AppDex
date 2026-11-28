@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Threading;
 
 namespace GameShelf
@@ -15,6 +16,23 @@ namespace GameShelf
         private readonly Dictionary<string, string> syncErrors = new Dictionary<string, string>();
         private int syncRevision;
 
+        private void ToggleEmptyLibrarySync(object sender, RoutedEventArgs e)
+        {
+            if (EmptyLibraryIntro.Visibility != Visibility.Visible) return;
+            bool enable = !(preferences.SyncSteam && preferences.SyncEpic);
+            preferences.SyncSteam = preferences.SyncEpic = enable;
+            QueuePreferences();
+            UpdateLibrarySync();
+        }
+
+        private void RefreshEmptyLibrarySync()
+        {
+            bool enabled = preferences.SyncSteam && preferences.SyncEpic;
+            EmptyLibrarySync.Content = enabled ? "Turn off library sync" : "Turn on library sync";
+            EmptyLibraryStatus.Text = enabled ? "Sync is on. Installed games will appear here when AppDex finds them."
+                : "Only games installed on this PC appear in AppDex.";
+        }
+
         private void InitializeLibrarySync()
         {
             librarySync.Tick += delegate { PollLibrarySync(); };
@@ -25,6 +43,7 @@ namespace GameShelf
         private void UpdateLibrarySync()
         {
             if (AppBuild.IsPreview || catalog.LoadError != null) return;
+            RefreshEmptyLibrarySync();
 
             syncRevision++;
             syncErrors.Clear();
@@ -49,21 +68,9 @@ namespace GameShelf
         {
             if (tileDrag != null || pressedTile != null || DrawerContent.Content is ImportPane) return;
             if (preferences.SyncSteam && !syncingStores.Contains("Steam"))
-                RefreshStore("Steam", ScanSteam, result => result.Scan != null && catalog.SyncSteam(result.Scan, result.Client));
+                RefreshStore("Steam", SteamLocation.ScanInstalled, result => result.Scan != null && catalog.SyncSteam(result.Scan, result.Client));
             if (preferences.SyncEpic && !syncingStores.Contains("Epic Games"))
-                RefreshStore("Epic Games", () =>
-                {
-                    var apps = AppDiscovery.ScanEpic(AppDiscovery.EpicFolder, out bool complete);
-                    return (Apps: apps, Complete: complete);
-                }, scan => catalog.SyncEpic(scan.Apps, scan.Complete));
-        }
-
-        private static (SteamScan Scan, string Client) ScanSteam()
-        {
-            var location = SteamLocation.Read(SteamLocation.PreferencesFile);
-            string client = location.FindClient();
-            if (client == null && string.IsNullOrEmpty(location.LibraryFolder)) return (null, null);
-            return (SteamLibrary.ScanInstalled(client, location.LibraryFolder), client);
+                RefreshStore("Epic Games", AppDiscovery.ScanInstalledEpic, scan => catalog.SyncEpic(scan.Apps, scan.Complete));
         }
 
         private async void RefreshStore<T>(string source, Func<T> scan, Func<T, bool> apply)

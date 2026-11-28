@@ -47,22 +47,57 @@
       </ControlTemplate></Setter.Value>
     </Setter>
   </Style>
+  <ControlTemplate x:Key="DropdownTrigger" TargetType="ButtonBase">
+    <Border x:Name="Box" CornerRadius="{DynamicResource AppControlCorner}" Background="{TemplateBinding Background}"
+        BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1">
+      <Grid>
+        <ContentPresenter VerticalAlignment="Center" Margin="8,0,23,0" RecognizesAccessKey="True"/>
+        <Path Data="M0,0 L4,4 8,0" Stroke="{TemplateBinding Foreground}" Opacity="0.72" HorizontalAlignment="Right"
+            VerticalAlignment="Center" Margin="0,0,9,0"/>
+      </Grid>
+    </Border>
+    <ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AppAccent}"/></Trigger>
+      <Trigger Property="ToggleButton.IsChecked" Value="True"><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AppAccent}"/></Trigger>
+    </ControlTemplate.Triggers>
+  </ControlTemplate>
+  <Style x:Key="DropdownMenuButton" TargetType="ButtonBase">
+    <Setter Property="Foreground" Value="{DynamicResource AppText}"/>
+    <Setter Property="Background" Value="{DynamicResource AppControl}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource AppEdge}"/>
+    <Setter Property="KeyboardNavigation.AcceptsReturn" Value="True"/>
+    <Setter Property="Template" Value="{StaticResource DropdownTrigger}"/>
+  </Style>
+  <Style x:Key="DropdownMenuOption" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource AppText}"/>
+    <Setter Property="Padding" Value="9,5"/>
+    <Setter Property="Template">
+      <Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Item" Background="Transparent" Padding="{TemplateBinding Padding}">
+          <ContentPresenter RecognizesAccessKey="True"/>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True">
+            <Setter TargetName="Item" Property="Background" Value="{DynamicResource AppAccent}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppAccentInk}"/>
+          </Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True">
+            <Setter TargetName="Item" Property="Background" Value="{DynamicResource AppAccent}"/>
+            <Setter Property="Foreground" Value="{DynamicResource AppAccentInk}"/>
+          </Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value>
+    </Setter>
+  </Style>
   <Style TargetType="ComboBox">
     <Setter Property="Foreground" Value="{DynamicResource AppText}"/>
     <Setter Property="Background" Value="{DynamicResource AppControl}"/>
     <Setter Property="Template">
       <Setter.Value><ControlTemplate TargetType="ComboBox">
         <Grid>
-          <ToggleButton Focusable="False" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
-            <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
-              <Border x:Name="Box" CornerRadius="{DynamicResource AppControlCorner}" Background="{DynamicResource AppControl}" BorderBrush="{DynamicResource AppEdge}" BorderThickness="1">
-                <Path Data="M0,0 L4,4 8,0" Stroke="{DynamicResource AppMuted}" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,9,0"/>
-              </Border>
-              <ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AppAccent}"/>
-              </Trigger></ControlTemplate.Triggers>
-            </ControlTemplate></ToggleButton.Template>
-          </ToggleButton>
+          <ToggleButton Focusable="False" ClickMode="Press" Template="{StaticResource DropdownTrigger}"
+              Background="{TemplateBinding Background}" BorderBrush="{DynamicResource AppEdge}" Foreground="{TemplateBinding Foreground}"
+              IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"/>
           <ContentPresenter Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
               IsHitTestVisible="False" VerticalAlignment="Center" Margin="9,0,24,0"/>
           <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom" AllowsTransparency="True"

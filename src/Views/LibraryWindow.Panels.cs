@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -19,6 +20,8 @@ namespace GameShelf
 
         private IInputElement panelFocus;
         private IInputElement menuFocus;
+        private readonly Control[] headerDropdowns;
+        private ToggleButton openDropdown;
         private IInputElement quitFocus;
         private int panelTransition;
         private int launchNoticeVersion;
@@ -181,16 +184,23 @@ namespace GameShelf
 
         private void ShowMenu(FrameworkElement anchor, Point? cursor, params MenuChoice[] choices)
         {
+            ShowMenu(anchor, cursor, false, choices);
+        }
+
+        private void ShowMenu(FrameworkElement anchor, Point? cursor, bool dropdown, params MenuChoice[] choices)
+        {
             var options = new StackPanel();
             foreach (var choice in choices)
             {
-                var line = SmallButton(choice.Label);
+                var line = dropdown
+                    ? new Button { Content = choice.Label, Style = (Style)FindResource("DropdownMenuOption") }
+                    : SmallButton(choice.Label);
                 line.HorizontalContentAlignment = HorizontalAlignment.Left;
-                line.Margin = new Thickness(0, 0, 0, 3);
+                if (!dropdown) line.Margin = new Thickness(0, 0, 0, 3);
                 line.Click += delegate { CloseMenu(); choice.Select(); };
                 options.Children.Add(line);
             }
-            ShowPopover(anchor, cursor, options, options.Children.Count == 0 ? null : options.Children[0]);
+            ShowPopover(anchor, cursor, options, options.Children.Count == 0 ? null : options.Children[0], dropdown);
         }
 
         private void PreviewPickerClick(object sender, RoutedEventArgs e) { ShowPreviewNotice((Button)sender); }
@@ -205,19 +215,21 @@ namespace GameShelf
             ShowPopover(anchor, null, new StackPanel { Children = { message, ok } }, ok);
         }
 
-        private void ShowPopover(FrameworkElement anchor, Point? cursor, FrameworkElement content, UIElement initialFocus)
+        private void ShowPopover(FrameworkElement anchor, Point? cursor, FrameworkElement content, UIElement initialFocus, bool dropdown = false)
         {
             CloseMenu();
             menuFocus = Keyboard.FocusedElement;
-            var menu = new Border { CornerRadius = new CornerRadius(preferences.Appearance.ControlCorner), Padding = new Thickness(5),
-                BorderThickness = new Thickness(1), Child = content, MinWidth = 174 };
+            var menu = new Border { CornerRadius = new CornerRadius(preferences.Appearance.ControlCorner), Padding = new Thickness(dropdown ? 0 : 5),
+                BorderThickness = new Thickness(1), Child = content, MinWidth = dropdown ? anchor.ActualWidth : 174 };
             menu.SetResourceReference(Border.BackgroundProperty, "AppPanel");
             menu.SetResourceReference(Border.BorderBrushProperty, "AppEdge");
             menu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            Point location = cursor ?? anchor.TranslatePoint(new Point(0, anchor.ActualHeight + 5), Page);
+            Point location = cursor ?? anchor.TranslatePoint(new Point(0, anchor.ActualHeight + (dropdown ? 0 : 5)), Page);
             Canvas.SetLeft(menu, Math.Max(2, Math.Min(location.X, Page.ActualWidth - menu.DesiredSize.Width - 5)));
             Canvas.SetTop(menu, Math.Max(2, Math.Min(location.Y, Page.ActualHeight - menu.DesiredSize.Height - 5)));
             MenuLayer.Children.Add(menu);
+            openDropdown = dropdown ? anchor as ToggleButton : null;
+            if (openDropdown != null) openDropdown.IsChecked = true;
             MenuLayer.Visibility = Visibility.Visible;
             menu.BeginAnimation(OpacityProperty, Motion(.2, 1, 150));
             initialFocus?.Focus();
@@ -226,29 +238,54 @@ namespace GameShelf
         private void CloseMenu()
         {
             if (MenuLayer.Visibility != Visibility.Visible) return;
+            if (openDropdown != null) openDropdown.IsChecked = false;
+            openDropdown = null;
             MenuLayer.Children.Clear();
             MenuLayer.Visibility = Visibility.Collapsed;
             RestoreFocus(menuFocus);
             menuFocus = null;
         }
 
-        private void DismissMenuOnBackdrop(object sender, MouseButtonEventArgs e)
+        private void SwitchDropdownOnMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (!ReferenceEquals(e.OriginalSource, MenuLayer)) return;
+            bool backdrop = ReferenceEquals(e.OriginalSource, MenuLayer);
+            var capturedPicker = Mouse.Captured as ComboBox;
+            // A ComboBox sends outside clicks to itself while its dropdown has mouse capture.
+            bool outsidePicker = capturedPicker?.IsDropDownOpen == true && ReferenceEquals(e.OriginalSource, capturedPicker)
+                && Array.IndexOf(headerDropdowns, capturedPicker) >= 0;
+            if (!backdrop && !outsidePicker) return;
+
+            var hit = (outsidePicker || openDropdown != null) && e.ChangedButton == MouseButton.Left
+                ? Shell.InputHitTest(e.GetPosition(Shell)) as Visual : null;
+            var next = hit == null ? null : Array.Find(headerDropdowns,
+                dropdown => dropdown.IsEnabled && (ReferenceEquals(dropdown, hit) || dropdown.IsAncestorOf(hit)));
+            if (backdrop)
+            {
+                if (next == openDropdown) next = null;
+                e.Handled = true;
+                CloseMenu();
+            }
+
+            if (next == null || next == capturedPicker) return;
             e.Handled = true;
-            CloseMenu();
+            if (outsidePicker) capturedPicker.IsDropDownOpen = false;
+            next.Focus();
+            if (next is ComboBox picker) picker.IsDropDownOpen = true;
+            else if (next is ButtonBase button) button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, button));
         }
 
         private void ShowImportMenu(object sender, RoutedEventArgs e)
         {
-            ShowMenu((FrameworkElement)sender, null,
+            ShowMenu((FrameworkElement)sender, null, true,
                 new MenuChoice("Import Steam library", () => OpenImport("Steam")),
                 new MenuChoice("Import Epic Games library", () => OpenImport("Epic")));
         }
 
         private void ShowAddMenu(object sender, RoutedEventArgs e)
         {
-            ShowMenu((FrameworkElement)sender, null, new MenuChoice("Add app manually", () => Edit(null)),
+            ShowMenu((FrameworkElement)sender, null, true,
+                new MenuChoice("Add app manually", () => Edit(null)),
+                new MenuChoice("Add website", () => EditProfile(null, null, false, addWebsite: true)),
                 new MenuChoice("Scan open apps", () => OpenImport("Running")));
         }
     }

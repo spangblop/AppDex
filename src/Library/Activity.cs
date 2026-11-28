@@ -133,5 +133,12 @@ namespace GameShelf
                 throw;
             }
         }
+
+        internal void RecordWebsiteOpen(string id)
+        {
+            if (!Games.TryGetValue(id, out GameActivity activity)) Games[id] = activity = new GameActivity();
+            activity.Launches++;
+            Dirty = true;
+        }
     }
 }

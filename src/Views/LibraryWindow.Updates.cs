@@ -60,19 +60,26 @@ namespace GameShelf
 
         private void OpenAvailableUpdate(object sender, RoutedEventArgs e)
         {
-            var update = availableUpdate;
+            ShowUpdatePanel(availableUpdate);
+        }
+
+        private void ShowUpdatePanel(AppUpdate update, AppRelease selectedRelease = null, Action back = null)
+        {
             if (update == null || installingUpdate) return;
+            bool downgrade = selectedRelease != null && update.Version < AppUpdates.BuildVersion;
             var description = new TextBlock {
-                Text = "AppDex " + update.Version.ToString(3) + " is ready to download. You’re running " + AppUpdates.CurrentLabel + ".",
+                Text = downgrade ? "Switch from " + AppUpdates.CurrentLabel + " to AppDex " + update.Version.ToString(3) +
+                    "? AppDex will back up your current executable and library data files first." :
+                    "AppDex " + update.Version.ToString(3) + " is ready to download. You’re running " + AppUpdates.CurrentLabel + ".",
                 TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
             var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed,
                 Margin = new Thickness(0, 0, 0, 12) };
             AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
             status.SetResourceReference(ForegroundProperty, "AppMuted");
-            var later = SmallButton("Not now");
+            var later = SmallButton(back == null ? "Not now" : "Back to update history");
             later.Margin = new Thickness(0, 0, 7, 0);
-            later.Click += delegate { ClosePanel(); };
-            var install = SmallButton("Install and restart");
+            later.Click += delegate { if (back == null) ClosePanel(); else back(); };
+            var install = SmallButton(downgrade ? "Downgrade and restart" : "Install and restart");
             install.SetResourceReference(BackgroundProperty, "AppAccent");
             install.SetResourceReference(ForegroundProperty, "AppAccentInk");
             install.SetResourceReference(BorderBrushProperty, "AppAccent");
@@ -81,6 +88,17 @@ namespace GameShelf
             DockPanel.SetDock(description, Dock.Top);
             DockPanel.SetDock(actions, Dock.Bottom);
             DockPanel.SetDock(status, Dock.Bottom);
+            if (selectedRelease != null)
+            {
+                var warnings = new WrapPanel { Margin = new Thickness(0, 0, 0, 8) };
+                foreach (string warning in UpdateFeatureWarnings(selectedRelease))
+                    warnings.Children.Add(UpdateWarningTag(warning));
+                if (warnings.Children.Count != 0)
+                {
+                    DockPanel.SetDock(warnings, Dock.Top);
+                    panel.Children.Add(warnings);
+                }
+            }
             if (!string.IsNullOrWhiteSpace(update.ReleaseNotes))
             {
                 var heading = new TextBlock { Text = "Release notes", FontWeight = FontWeights.SemiBold,
@@ -103,33 +121,36 @@ namespace GameShelf
                 installingUpdate = true;
                 UpdateAvailableButton.IsEnabled = later.IsEnabled = install.IsEnabled = false;
                 status.SetResourceReference(ForegroundProperty, "AppMuted");
-                status.Text = "Checking for the latest AppDex release…";
+                status.Text = selectedRelease == null ? "Checking for the latest AppDex release…" : "Preparing the selected build…";
                 status.Visibility = Visibility.Visible;
                 bool restarting = false;
                 try
                 {
-                    AppUpdate latest;
-                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25)))
-                        latest = await AppUpdates.Check(timeout.Token);
-                    if (updatesClosed) return;
-                    SetAvailableUpdate(latest);
-                    if (latest == null)
+                    AppUpdate package = update;
+                    if (selectedRelease == null)
                     {
-                        if (ReferenceEquals(DrawerContent.Content, panel)) ClosePanel();
-                        Announce("No newer AppDex release is available.");
-                        return;
-                    }
-                    if (latest.Version != update.Version)
-                    {
-                        installingUpdate = false;
-                        if (ReferenceEquals(DrawerContent.Content, panel)) OpenAvailableUpdate(null, null);
-                        return;
+                        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25)))
+                            package = await AppUpdates.Check(timeout.Token);
+                        if (updatesClosed) return;
+                        SetAvailableUpdate(package);
+                        if (package == null)
+                        {
+                            if (ReferenceEquals(DrawerContent.Content, panel)) ClosePanel();
+                            Announce("No newer AppDex release is available.");
+                            return;
+                        }
+                        if (package.Version != update.Version)
+                        {
+                            installingUpdate = false;
+                            if (ReferenceEquals(DrawerContent.Content, panel)) OpenAvailableUpdate(null, null);
+                            return;
+                        }
                     }
 
-                    status.Text = "Downloading and checking AppDex " + latest.Version.ToString(3) + "…";
+                    status.Text = "Downloading and checking AppDex " + package.Version.ToString(3) + "…";
                     FlushPreferences();
                     using (var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(2)))
-                        await AppUpdateInstaller.Prepare(latest, timeout.Token, UpdateTrayCoordinator);
+                        await AppUpdateInstaller.Prepare(package, timeout.Token, UpdateTrayCoordinator, allowDowngrade: downgrade);
                     status.Text = "Restarting AppDex…";
                     QuitRequested?.Invoke();
                     restarting = true;
@@ -159,7 +180,7 @@ namespace GameShelf
                     }
                 }
             };
-            ShowPanel("Update available", panel, later);
+            ShowPanel(selectedRelease == null ? "Update available" : "Install " + selectedRelease.Tag, panel, later);
         }
     }
 }

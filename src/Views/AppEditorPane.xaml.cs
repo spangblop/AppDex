@@ -20,6 +20,7 @@ namespace GameShelf
         private readonly ImageSource defaultPicture;
         private BitmapSource newPicture;
         private readonly uint steamId;
+        private readonly bool website;
         private int pictureRequest;
         internal Game Result { get; private set; }
         internal bool Removed { get; private set; }
@@ -32,20 +33,24 @@ namespace GameShelf
         private bool switchingProfile;
         private LaunchProfile selectedProfile;
 
-        internal AppEditorPane(GameCatalog catalog, Game game)
+        internal AppEditorPane(GameCatalog catalog, Game game, bool addWebsite = false)
         {
             this.catalog = catalog;
             editedApp = game;
+            website = game?.IsWebsite ?? addWebsite;
             draft = game == null ? new GameSettings() : game.Settings.Copy();
             draft.Profiles = draft.Profiles ?? new List<LaunchProfile>();
             InitializeComponent();
-            SaveButton.Content = game == null ? "Add app" : "Save changes";
+            SaveButton.Content = game == null ? (website ? "Add website" : "Add app") : "Save changes";
             GameName.Text = draft.Name ?? "";
             SearchAliases.Text = draft.Aliases ?? "";
             Executable.Text = draft.Executable ?? "";
+            WebsiteAddress.Text = draft.WebUrl ?? "";
             SelectProfile(0);
-            ExecutableFields.Visibility = game == null || game.Custom ? Visibility.Visible : Visibility.Collapsed;
-            OpenFolderButton.Visibility = game == null ? Visibility.Collapsed : Visibility.Visible;
+            WebsiteFields.Visibility = website ? Visibility.Visible : Visibility.Collapsed;
+            ExecutableLaunchOptions.Visibility = website ? Visibility.Collapsed : Visibility.Visible;
+            ExecutableFields.Visibility = !website && (game == null || game.Custom) ? Visibility.Visible : Visibility.Collapsed;
+            OpenFolderButton.Visibility = game == null || website ? Visibility.Collapsed : Visibility.Visible;
             OpenProfileFolderButton.Visibility = OpenFolderButton.Visibility;
             defaultPicture = game == null ? Game.CustomBackdrop() : game.DefaultArtwork;
             PicturePreview.ImageSource = game == null ? defaultPicture : game.Artwork;
@@ -352,6 +357,7 @@ namespace GameShelf
             draft.Name = GameName.Text;
             draft.Aliases = SearchAliases.Text;
             draft.Executable = Executable.Text;
+            draft.WebUrl = website ? WebsiteAddress.Text : null;
             SaveProfileFields();
             try
             {

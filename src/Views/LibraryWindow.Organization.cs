@@ -14,7 +14,7 @@ namespace GameShelf
 {
     public partial class LibraryWindow
     {
-        private static readonly string[] Sources = { null, "Steam", "Windows", "Epic Games" };
+        private static readonly string[] Sources = { null, "Steam", "Windows", "Epic Games", "Web" };
         private readonly List<string> visibleIds = new List<string>();
         private readonly Dictionary<string, Button> tiles = new Dictionary<string, Button>();
         private readonly DispatcherTimer trayArtworkCleanup = new DispatcherTimer(DispatcherPriority.ContextIdle)
@@ -129,14 +129,18 @@ namespace GameShelf
                     : Games.OrderByDescending(game => game.Launches).ThenByDescending(game => game.PlayTicks);
                 foreach (var game in ordered.Where(game => matching.Contains(game.Id))) AddTile(game);
             }
-            if (visible.Count == 0) Covers.Children.Add(new TextBlock {
+            bool showSyncIntro = all.Count == 0 && catalog.LoadError == null && !AppBuild.IsPreview;
+            EmptyLibraryIntro.Visibility = showSyncIntro ? Visibility.Visible : Visibility.Collapsed;
+            LibraryScroll.Visibility = showSyncIntro ? Visibility.Collapsed : Visibility.Visible;
+            if (showSyncIntro) RefreshEmptyLibrarySync();
+            if (visible.Count == 0 && !showSyncIntro) Covers.Children.Add(new TextBlock {
                 Text = all.Count == 0 ? "Add an app or import a library to get started." : "No matching apps",
                 FontSize = 19, Margin = new Thickness(4, 19, 0, 0), TextWrapping = TextWrapping.Wrap });
             int count = group == null ? all.Count : group.Apps.Count;
             CountText.Text = shown == count ? AppCount(count) : shown + " of " + AppCount(count);
             ViewTitle.Text = group == null ? "Library" : group.Name;
             BackToLibrary.Visibility = group == null ? Visibility.Collapsed : Visibility.Visible;
-            Status.Text = catalog.LoadError ?? (preferences.Sort == 2
+            Status.Text = catalog.LoadError ?? (showSyncIntro ? "" : preferences.Sort == 2
                 ? group == null ? "Drop in the center to group apps. Drop at an edge to reorder."
                     : "Drag to reorder apps in this group."
                 : "Right-click an app to open its options.");

@@ -16,17 +16,28 @@
           ScrollViewer.HorizontalScrollBarVisibility="Disabled" MouseDoubleClick="LaunchResult">
         <ListBox.ItemTemplate>
           <DataTemplate>
-            <StackPanel Orientation="Horizontal" Margin="4,3">
-              <Image Width="53" Height="30" Stretch="UniformToFill" Source="{Binding Artwork}" Margin="0,0,9,0"/>
+            <DockPanel Margin="4,3">
+              <Button x:Name="QuitGame" DockPanel.Dock="Right" Content="Quit" Click="QuitResult" Visibility="Collapsed"
+                  Style="{DynamicResource ActionButton}" Margin="8,0,0,0" Padding="8,3" VerticalAlignment="Center"
+                  Foreground="{DynamicResource AppDanger}" BorderBrush="{DynamicResource AppDanger}"
+                  ToolTip="Ask the running game to close" AutomationProperties.Name="{Binding Name, StringFormat=Quit {0}}"/>
+              <Image DockPanel.Dock="Left" Width="53" Height="30" Stretch="UniformToFill" Source="{Binding Artwork}" Margin="0,0,9,0"/>
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="320"/>
                 <TextBlock Text="{Binding SourceStatus}" FontSize="11"/>
               </StackPanel>
-            </StackPanel>
+            </DockPanel>
+            <DataTemplate.Triggers>
+              <DataTrigger Binding="{Binding Playing}" Value="True">
+                <Setter TargetName="QuitGame" Property="Visibility" Value="Visible"/>
+              </DataTrigger>
+            </DataTemplate.Triggers>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
       <TextBlock x:Name="NoResults" Text="No matching apps" Margin="0,7" Foreground="{DynamicResource AppMuted}"/>
+      <TextBlock x:Name="QuitStatus" TextWrapping="Wrap" Margin="0,6,0,0" Visibility="Collapsed"
+          AutomationProperties.LiveSetting="Polite" Foreground="{DynamicResource AppMuted}"/>
       <DockPanel Margin="0,10,0,0">
         <Button x:Name="LaunchButton" DockPanel.Dock="Right" Content="Launch" Click="LaunchResult"
             Style="{DynamicResource ActionButton}" Background="{DynamicResource AppAccent}"

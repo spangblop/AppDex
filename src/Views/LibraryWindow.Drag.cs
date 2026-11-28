@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Windows;
@@ -43,6 +44,7 @@ namespace GameShelf
             internal DragAdorner Preview;
             internal AdornerLayer Layer;
             internal TimeSpan FrameTime;
+            internal DragFrameMeter Timing;
         }
 
         private string pressedTileId;
@@ -106,6 +108,7 @@ namespace GameShelf
                 Id = id, Source = tile, Anchor = Page.TranslatePoint(start, tile), Pointer = start, Size = size,
                 Original = order, Projected = order, Slots = slots, Layer = layer, FromPins = fromPins,
                 Pins = new PinDragLayout(Pinned.Children.OfType<Button>().ToArray(), id),
+                Timing = preferences.ShowDragFrameTiming ? new DragFrameMeter() : null,
                 BaseIndices = order.Select((key, index) => new { key, index }).ToDictionary(pair => pair.key, pair => pair.index),
                 Preview = new DragAdorner(Page, image, (Brush)FindResource("AppAccentText"), preferences.Appearance.TileCorner)
             };
@@ -117,6 +120,7 @@ namespace GameShelf
                 if (!Mouse.Capture(this) || Mouse.Captured != this || tileDrag != drag) return false;
                 drag.Ready = true;
                 tile.Opacity = .36;
+                if (drag.Timing != null) drag.Preview.ShowTiming("Measuring drag frames…");
                 CompositionTarget.Rendering += RenderDragFrame;
                 return true;
             }
@@ -348,6 +352,7 @@ namespace GameShelf
                 return;
             }
             TimeSpan time = ((RenderingEventArgs)e).RenderingTime;
+            long started = drag.Timing != null && drag.FrameTime != time ? Stopwatch.GetTimestamp() : 0;
             double elapsed = drag.FrameTime == TimeSpan.Zero ? 16 : Math.Min(40, (time - drag.FrameTime).TotalMilliseconds);
             drag.FrameTime = time;
             Point pointer = drag.Pointer;
@@ -358,6 +363,39 @@ namespace GameShelf
             else if (!drag.FromPins && viewport.Contains(pointer))
                 ScrollDuringDrag(LibraryScroll, viewport, pointer, elapsed);
             UpdateTileDrag(pointer);
+            if (started != 0 && drag.Timing.Record(started, Stopwatch.GetTimestamp()) is string summary)
+                drag.Preview.ShowTiming(summary);
+        }
+
+        private sealed class DragFrameMeter
+        {
+            private const double SampleMilliseconds = 250;
+            private long previousFrame, totalFrameTicks, worstFrameTicks, totalUpdateTicks;
+            private int samples;
+
+            internal string Record(long started, long finished)
+            {
+                long interval = started - previousFrame;
+                bool first = previousFrame == 0;
+                previousFrame = started;
+                if (first || interval <= 0) return null;
+
+                totalFrameTicks += interval;
+                worstFrameTicks = Math.Max(worstFrameTicks, interval);
+                totalUpdateTicks += finished - started;
+                samples++;
+                double millisecondsPerTick = 1000d / Stopwatch.Frequency;
+                double window = totalFrameTicks * millisecondsPerTick;
+                if (window < SampleMilliseconds) return null;
+
+                double average = window / samples;
+                string summary = string.Format(CultureInfo.CurrentCulture,
+                    "Frame {0:0.0} ms  ·  ~{1:0} FPS\nWorst {2:0.0} ms  ·  Drag update {3:0.0} ms",
+                    average, 1000 / average, worstFrameTicks * millisecondsPerTick, totalUpdateTicks * millisecondsPerTick / samples);
+                totalFrameTicks = worstFrameTicks = totalUpdateTicks = 0;
+                samples = 0;
+                return summary;
+            }
         }
 
         private static void ScrollDuringDrag(ScrollViewer scroll, Rect viewport, Point pointer, double elapsed)
@@ -461,6 +499,7 @@ namespace GameShelf
             private bool grouping;
             private string label;
             private DrawingGroup overlay;
+            private FormattedText timing;
             internal Rect Avatar { get; private set; }
 
             internal DragAdorner(UIElement element, ImageSource image, Brush accent, double radius) : base(element)
@@ -481,6 +520,14 @@ namespace GameShelf
                 grouping = group;
                 label = text;
                 overlay = targets;
+                InvalidateVisual();
+            }
+
+            internal void ShowTiming(string summary)
+            {
+                timing = new FormattedText(summary, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+                    new Typeface("Consolas"), 12, Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip)
+                { MaxTextWidth = Math.Max(80, AdornedElement.RenderSize.Width - 36) };
                 InvalidateVisual();
             }
 
@@ -509,6 +556,13 @@ namespace GameShelf
                 dc.DrawImage(image, Avatar);
                 dc.Pop();
                 dc.DrawRoundedRectangle(null, outline, Avatar, radius, radius);
+                if (timing != null)
+                {
+                    double leftEdge = Math.Max(8, RenderSize.Width - timing.Width - 26);
+                    var meter = new Rect(leftEdge, 8, timing.Width + 16, timing.Height + 12);
+                    dc.DrawRoundedRectangle(Brushes.Black, outline, meter, 6, 6);
+                    dc.DrawText(timing, new Point(meter.Left + 8, meter.Top + 6));
+                }
                 if (label == null) return;
                 var text = new FormattedText(label, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
                     new Typeface("Segoe UI Semibold"), 13, Brushes.White, VisualTreeHelper.GetDpi(this).PixelsPerDip)

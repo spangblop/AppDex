@@ -58,6 +58,11 @@
             <TextBox x:Name="Executable" Style="{StaticResource EditorField}" AutomationProperties.Name="App executable" HorizontalScrollBarVisibility="Hidden"/>
           </DockPanel>
         </StackPanel>
+        <StackPanel x:Name="WebsiteFields" Margin="0,15,0,0" Visibility="Collapsed">
+          <Label Content="Website URL" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=WebsiteAddress}"/>
+          <TextBox x:Name="WebsiteAddress" Style="{StaticResource EditorField}" AutomationProperties.Name="Website URL"
+              AutomationProperties.HelpText="Enter an address starting with https:// or http://."/>
+        </StackPanel>
         <Button x:Name="OpenFolderButton" Content="Open install folder" Click="OpenInstallFolder"
             Style="{StaticResource ActionButton}" HorizontalAlignment="Left" Margin="0,9,0,0" Visibility="Collapsed"/>
         <Label Content="App picture" Style="{StaticResource FieldLabel}" Margin="0,16,0,0"/>
@@ -73,6 +78,7 @@
                 Margin="0,3,0,0" Visibility="Collapsed"/>
           </WrapPanel>
         </Grid>
+        <StackPanel x:Name="ExecutableLaunchOptions">
         <Label Content="Launch profiles" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=ProfilePicker}" Margin="0,16,0,0"/>
         <DockPanel>
           <WrapPanel DockPanel.Dock="Right">
@@ -96,6 +102,7 @@
         <TextBox x:Name="Arguments" Style="{StaticResource EditorField}" AutomationProperties.Name="Launch arguments" HorizontalScrollBarVisibility="Hidden"/>
         <TextBlock Text="Use quotes around values that contain spaces." Foreground="{DynamicResource AppMuted}" FontSize="12"
             Margin="0,5,0,2" TextWrapping="Wrap"/>
+        </StackPanel>
         <Label Content="Launch shortcut" Style="{StaticResource FieldLabel}" Target="{Binding ElementName=RecordShortcut}" Margin="0,16,0,0"/>
         <WrapPanel>
           <Button x:Name="RecordShortcut" Style="{StaticResource ActionButton}" MinWidth="130" Margin="0,0,6,0"

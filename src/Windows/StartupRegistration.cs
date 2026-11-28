@@ -21,16 +21,13 @@ namespace GameShelf
 
         internal bool IsRegistered()
         {
-            return File.Exists(shortcut) && WithLink(shortcut, link =>
-                string.Equals((string)link.TargetPath, executable, StringComparison.OrdinalIgnoreCase));
+            return File.Exists(shortcut) && WithLink(shortcut, link => IsAppDexLink(link) && File.Exists((string)link.TargetPath));
         }
 
         internal void SetRegistered(bool enable)
         {
             bool exists = File.Exists(shortcut);
-            if (exists && !WithLink(shortcut, link =>
-                string.Equals((string)link.TargetPath, executable, StringComparison.OrdinalIgnoreCase) ||
-                (string)link.Description == Description || (!AppBuild.IsPreview && (string)link.Description == PreviousDescription)))
+            if (exists && !WithLink(shortcut, link => IsAppDexLink(link)))
                 throw new IOException("Another shortcut named " + AppBuild.Name + " already uses this Startup folder.");
             if (!enable)
             {
@@ -56,6 +53,12 @@ namespace GameShelf
                 else File.Move(staging, shortcut);
             }
             finally { if (File.Exists(staging)) File.Delete(staging); }
+        }
+
+        private bool IsAppDexLink(dynamic link)
+        {
+            return string.Equals((string)link.TargetPath, executable, StringComparison.OrdinalIgnoreCase) ||
+                (string)link.Description == Description || (!AppBuild.IsPreview && (string)link.Description == PreviousDescription);
         }
 
         private static bool WithLink(string path, Func<dynamic, bool> use)

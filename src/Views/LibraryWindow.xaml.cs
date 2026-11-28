@@ -16,9 +16,9 @@ using System.Windows.Threading;
 
 [assembly: AssemblyTitle("AppDex")]
 [assembly: AssemblyProduct("AppDex")]
-[assembly: AssemblyInformationalVersion("Beta 0.6.4")]
-[assembly: AssemblyVersion("0.6.4.0")]
-[assembly: AssemblyFileVersion("0.6.4.0")]
+[assembly: AssemblyInformationalVersion("Beta 0.7.0")]
+[assembly: AssemblyVersion("0.7.0.0")]
+[assembly: AssemblyFileVersion("0.7.0.0")]
 
 namespace GameShelf
 {
@@ -28,12 +28,16 @@ namespace GameShelf
         private readonly PreferenceWriter preferenceWriter;
         private readonly UiSounds uiSounds = new UiSounds();
         private LibraryPreferences preferences;
+        private StartupRegistration startup;
+        private StartupMode? startupSelection;
+        private bool refreshingStartup;
         internal IEnumerable<Game> Games { get { return catalog.Games; } }
         internal bool QuitOnWindowClose => preferences.QuitOnWindowClose;
         internal bool StartupInTray => preferences.StartupInTray;
         internal bool HasPendingLaunch => pending.Keys.Any(game => game.Launching);
         internal event Action QuitRequested;
         internal event Action<Game> ResetActivityRequested;
+        internal event Action<Game> WebsiteOpened;
         internal event Action GameShortcutsChanged;
         internal event Action<string> HiddenLaunchError;
         internal Func<Game, int, int, string> ValidateGameShortcut;
@@ -43,6 +47,15 @@ namespace GameShelf
         internal Func<int, int, string> RegisterQuickShortcut;
         internal int QuickLaunchModifiers => preferences.QuickLaunchModifiers ?? LaunchHotkeys.DefaultModifiers;
         internal int QuickLaunchKey => preferences.QuickLaunchKey ?? LaunchHotkeys.DefaultKey;
+
+        internal void SetQuickLaunchHint(string shortcut)
+        {
+            QuickLaunchHint.Visibility = shortcut == null ? Visibility.Collapsed : Visibility.Visible;
+            QuickLaunchHint.Text = shortcut == null ? "" : "Quick launch · " + shortcut;
+            QuickLaunchHint.ToolTip = shortcut == null ? null :
+                "Press " + shortcut + " to open Quick Launch from anywhere while AppDex is running.";
+        }
+
         private readonly Action<Game> launch;
         private const long LaunchTimeoutMilliseconds = 15000;
         private readonly Dictionary<Game, PendingLaunch> pending = new Dictionary<Game, PendingLaunch>();
@@ -63,7 +76,18 @@ namespace GameShelf
         }
 
         internal LibraryWindow(Action<Game> launchGame)
-            : this(launchGame, new GameCatalog(AppBuild.DataDirectory)) { }
+            : this(launchGame, new GameCatalog(AppBuild.DataDirectory))
+        {
+            try
+            {
+                InitializeStartupPicker(new StartupRegistration(Environment.GetFolderPath(Environment.SpecialFolder.Startup),
+                    typeof(DesktopHost).Assembly.Location));
+            }
+            catch (Exception error)
+            {
+                StartupPicker.ToolTip = "Couldn't read startup settings. " + error.Message;
+            }
+        }
 
         internal LibraryWindow(Action<Game> launchGame, GameCatalog catalog)
         {
@@ -78,8 +102,10 @@ namespace GameShelf
             });
             AppAppearance.Apply(preferences, showWallpaper: false);
             InitializeComponent();
+            headerDropdowns = new Control[] { StartupPicker, SortPicker, SourcePicker, PreviewSortButton, PreviewSourceButton,
+                ImportButton, AddGameButton };
             Title = AppBuild.Name;
-            BuildNumber.Text = "Build " + AppUpdates.CurrentVersion.ToString(3);
+            BuildNumber.Content = "Build " + AppUpdates.CurrentVersion.ToString(3);
             if (AppBuild.IsPreview)
             {
                 SortPicker.Visibility = SourcePicker.Visibility = Visibility.Collapsed;
@@ -107,6 +133,7 @@ namespace GameShelf
                 }
             };
             PreviewKeyDown += SearchKeys;
+            PreviewMouseDown += SwitchDropdownOnMouseDown;
             Body.SizeChanged += delegate { ResizeLibrary(); };
             LibraryScroll.SizeChanged += delegate { ResizeTiles(); };
             PreviewMouseMove += MoveTilePointer;
@@ -146,9 +173,7 @@ namespace GameShelf
         {
             try
             {
-                var startup = new StartupRegistration(Environment.GetFolderPath(Environment.SpecialFolder.Startup),
-                    typeof(DesktopHost).Assembly.Location);
-                var settings = new SettingsPane(startup, preferences, QueuePreferences, delegate
+                var settings = new SettingsPane(preferences, QueuePreferences, delegate
                 {
                     AppAppearance.Apply(preferences, showWallpaper: IsVisible);
                     ApplyWindowChrome();
@@ -167,6 +192,87 @@ namespace GameShelf
             }
             catch (Exception error) { Announce("Couldn't open AppDex settings. " + error.Message); }
         }
+
+        private void ResizeHeader(object sender, SizeChangedEventArgs e)
+        {
+            if (HeaderControls == null) return;
+            bool narrow = e.NewSize.Width < 510;
+            Grid.SetRow(HeaderControls, narrow ? 1 : 0);
+            Grid.SetColumn(HeaderControls, narrow ? 0 : 1);
+            Grid.SetColumnSpan(HeaderControls, narrow ? 2 : 1);
+            HeaderControls.Margin = narrow ? new Thickness(0, 7, 0, 0) : new Thickness(10, 0, 0, 0);
+        }
+
+        private void InitializeStartupPicker(StartupRegistration registration)
+        {
+            startup = registration;
+            bool registered = startup.IsRegistered();
+            var current = registered ? (preferences.StartupInTray ? StartupMode.LaunchInTray : StartupMode.LaunchApp) : StartupMode.None;
+            var selected = preferences.StartupChoice ?? (registered || AppBuild.IsPreview ? current : StartupMode.LaunchApp);
+            RefreshStartupPicker(current);
+            StartupPicker.IsEnabled = true;
+            try
+            {
+                bool enable = selected != StartupMode.None;
+                if (enable != registered) startup.SetRegistered(enable);
+                SaveStartupChoice(selected);
+            }
+            catch (Exception error)
+            {
+                StartupPicker.ToolTip = "Couldn't set startup mode. " + error.Message;
+            }
+        }
+
+        private void SaveStartupChoice(StartupMode selection)
+        {
+            bool inTray = selection == StartupMode.LaunchInTray;
+            bool acknowledged = selection == StartupMode.None && preferences.StartupWarningAcknowledged;
+            bool changed = preferences.StartupChoice != selection || preferences.StartupInTray != inTray
+                || preferences.StartupWarningAcknowledged != acknowledged;
+            preferences.StartupChoice = selection;
+            preferences.StartupInTray = inTray;
+            preferences.StartupWarningAcknowledged = acknowledged;
+            RefreshStartupPicker(selection);
+            if (changed) QueuePreferences();
+        }
+
+        private void RefreshStartupPicker(StartupMode selection)
+        {
+            refreshingStartup = true;
+            startupSelection = selection;
+            StartupPicker.SelectedIndex = (int)selection;
+            StartupWarningRow.Visibility = selection == StartupMode.None && !preferences.StartupWarningAcknowledged
+                ? Visibility.Visible : Visibility.Collapsed;
+            refreshingStartup = false;
+        }
+
+        private void AcknowledgeStartupWarning(object sender, RoutedEventArgs e)
+        {
+            preferences.StartupWarningAcknowledged = true;
+            StartupWarningRow.Visibility = Visibility.Collapsed;
+            StartupPicker.Focus();
+            QueuePreferences();
+        }
+
+        private void ChangeStartup(object sender, SelectionChangedEventArgs e)
+        {
+            if (refreshingStartup || startup == null || !startupSelection.HasValue || StartupPicker.SelectedIndex < 0) return;
+            var selected = (StartupMode)StartupPicker.SelectedIndex;
+            if (selected == startupSelection.Value) return;
+            try
+            {
+                startup.SetRegistered(selected != StartupMode.None);
+                SaveStartupChoice(selected);
+                StartupPicker.ToolTip = null;
+            }
+            catch (Exception error)
+            {
+                RefreshStartupPicker(startupSelection.Value);
+                AnnounceError("Couldn't update startup. " + error.Message);
+            }
+        }
+
+        private void OpenCredits(object sender, RoutedEventArgs e) => ShowPanel("Credits", new StackPanel());
 
         private void FullscreenClick(object sender, RoutedEventArgs e) { ToggleFullscreen(); }
 
@@ -209,10 +315,10 @@ namespace GameShelf
 
         private void Edit(Game game) => EditProfile(game, null, false);
 
-        private void EditProfile(Game game, LaunchProfile profile, bool focusShortcut)
+        private void EditProfile(Game game, LaunchProfile profile, bool focusShortcut, bool addWebsite = false)
         {
             if (catalog.LoadError != null) { Announce(catalog.LoadError); return; }
-            var editor = new AppEditorPane(catalog, game);
+            var editor = new AppEditorPane(catalog, game, addWebsite);
             editor.ValidateShortcut = ValidateGameShortcut;
             editor.ValidateShortcuts = ValidateGameShortcuts;
             editor.Closed += focusShortcut ? (Action)ShowShortcutManager : ClosePanel;
@@ -236,7 +342,8 @@ namespace GameShelf
                 GameShortcutsChanged?.Invoke();
                 if (focusShortcut) ShowShortcutManager();
             };
-            ShowPanel(game == null ? "Add app" : "Edit app", editor);
+            bool website = game?.IsWebsite ?? addWebsite;
+            ShowPanel(game == null ? (website ? "Add website" : "Add app") : (website ? "Edit website" : "Edit app"), editor);
             if (focusShortcut) Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => editor.FocusShortcut(profile)));
         }
 
@@ -419,7 +526,12 @@ namespace GameShelf
                         return;
                     }
                     attempt.RequestSent = true;
-                    if (game.Playing) FinishLaunch(game, game.Name + " is running.");
+                    if (game.IsWebsite)
+                    {
+                        FinishLaunch(game, "Opened " + game.Name + ".");
+                        WebsiteOpened?.Invoke(game);
+                    }
+                    else if (game.Playing) FinishLaunch(game, game.Name + " is running.");
                     else if (!game.Launching) FinishLaunch(game);
                     if (preferences.QuitAfterLaunch) QuitRequested?.Invoke();
                     else if (preferences.MinimizeAfterLaunch)
@@ -436,7 +548,7 @@ namespace GameShelf
 
         private static string LaunchFailureMessage(Game game, LaunchProfile profile, Exception error)
         {
-            if (!Game.IsMissingLaunchTarget(error)) return "Couldn't open " + game.Name + ". " + error.Message;
+            if (game.IsWebsite || !Game.IsMissingLaunchTarget(error)) return "Couldn't open " + game.Name + ". " + error.Message;
             string target = profile == null ? game.Name : game.Name + " (" + profile.Name + ")";
             string path = (error as FileNotFoundException)?.FileName;
             return "Couldn't find the launch executable for " + target + ". (APPDEX-101)\n" +

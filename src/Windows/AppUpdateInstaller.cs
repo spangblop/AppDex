@@ -14,6 +14,7 @@ namespace GameShelf
     internal static class AppUpdateInstaller
     {
         private const string ApplyArgument = "--apply-appdex-update";
+        private const string DowngradeArgument = "--downgrade=";
         private const string CleanupArgument = "--cleanup-appdex-update";
         private const string StagePrefix = "AppDex-update-";
         private const string AccessDeniedMarker = "ACCESS_DENIED";
@@ -24,8 +25,12 @@ namespace GameShelf
         private static string CurrentExecutable => typeof(AppUpdateInstaller).Assembly.Location;
         private static int preparing;
 
-        internal static async Task Prepare(AppUpdate update, CancellationToken token, Process trayCoordinator = null)
+        internal static async Task Prepare(AppUpdate update, CancellationToken token, Process trayCoordinator = null, bool allowDowngrade = false)
         {
+            bool downgrade = update.Version < AppUpdates.BuildVersion;
+            if (update.Version == AppUpdates.BuildVersion || (downgrade && !allowDowngrade))
+                throw new InvalidDataException("This build was not selected for installation.");
+            string approvedVersion = downgrade ? update.Version.ToString(3) : null;
             string target = CurrentExecutable;
             EnsureWritableExecutable(target);
             string id = Guid.NewGuid().ToString("N");
@@ -44,9 +49,9 @@ namespace GameShelf
                     token.ThrowIfCancellationRequested();
                     File.Delete(archive);
                     File.Copy(target, Path.Combine(directory, Helper));
-                    WaitForHelper(target, directory, id, executableHash, trayCoordinator);
+                    WaitForHelper(target, directory, id, executableHash, trayCoordinator, approvedVersion);
                     token.ThrowIfCancellationRequested();
-                    File.WriteAllText(Path.Combine(directory, Proceed), executableHash);
+                    File.WriteAllText(Path.Combine(directory, Proceed), Approval(executableHash, approvedVersion));
                 }, token).ConfigureAwait(false);
                 ready = true;
             }
@@ -66,7 +71,9 @@ namespace GameShelf
                 throw new IOException("AppDex is running from a read-only file. Extract AppDex.exe from the ZIP to a folder you can write to, then open the extracted copy.");
         }
 
-        private static void WaitForHelper(string target, string directory, string id, string hash, Process trayCoordinator)
+        private static string Approval(string hash, string version) => version == null ? hash : hash + "|" + version;
+
+        private static void WaitForHelper(string target, string directory, string id, string hash, Process trayCoordinator, string approvedVersion)
         {
             using (var current = Process.GetCurrentProcess())
             using (var ready = new EventWaitHandle(false, EventResetMode.ManualReset, ReadyName(id)))
@@ -75,6 +82,7 @@ namespace GameShelf
                     ApplyArgument, current.Id, current.StartTime.ToUniversalTime().Ticks, Path.GetFileName(target), hash);
                 if (trayCoordinator != null)
                     arguments += string.Format(CultureInfo.InvariantCulture, " {0} {1}", trayCoordinator.Id, trayCoordinator.StartTime.ToUniversalTime().Ticks);
+                if (approvedVersion != null) arguments += " " + DowngradeArgument + approvedVersion;
                 using (var helper = Process.Start(new ProcessStartInfo(Path.Combine(directory, Helper), arguments) { UseShellExecute = false }))
                 {
                     if (helper == null) throw new IOException("Couldn't start the AppDex updater.");
@@ -108,18 +116,21 @@ namespace GameShelf
             string verifiedStage = null;
             try
             {
-                if ((args.Length != 5 && args.Length != 7) || !int.TryParse(args[1], out int parentId) || !long.TryParse(args[2], out long parentStart) ||
+                string approvedVersion = args.Length > 5 && args[args.Length - 1].StartsWith(DowngradeArgument, StringComparison.Ordinal)
+                    ? args[args.Length - 1].Substring(DowngradeArgument.Length) : null;
+                int argumentCount = args.Length - (approvedVersion == null ? 0 : 1);
+                if ((argumentCount != 5 && argumentCount != 7) || !int.TryParse(args[1], out int parentId) || !long.TryParse(args[2], out long parentStart) ||
                     Path.GetFileName(args[3]) != args[3] || !args[3].EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
                     !AppUpdates.ValidHash(args[4]) || !TryGetStage(out string directory, out string id)) return true;
                 verifiedStage = directory;
                 string target = Path.Combine(Path.GetDirectoryName(directory), args[3]);
                 string candidate = Path.Combine(directory, Candidate);
-                using (var coordinator = OpenTrayCoordinator(args, parentId, target))
+                using (var coordinator = OpenTrayCoordinator(args, argumentCount, parentId, target))
                 using (var parent = Process.GetProcessById(parentId))
                 {
                     if (!string.Equals(GameProcesses.ExecutablePath(parent.Id), target, StringComparison.OrdinalIgnoreCase) ||
                         parent.StartTime.ToUniversalTime().Ticks != parentStart ||
-                        AppUpdates.ExecutableVersion(candidate) <= AppUpdates.CurrentVersion ||
+                        !CanInstallVersion(AppUpdates.ExecutableVersion(candidate), approvedVersion) ||
                         !string.Equals(AppUpdates.FileHash(candidate), args[4], StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException("The updater couldn't verify the running AppDex or the downloaded executable.");
                     using (var ready = EventWaitHandle.OpenExisting(ReadyName(id))) ready.Set();
@@ -129,9 +140,10 @@ namespace GameShelf
                         throw new IOException("AppDex's tray process did not exit. Fully quit AppDex and try the update again.");
                 }
                 string permission = Path.Combine(directory, Proceed);
-                if (!File.Exists(permission) || File.ReadAllText(permission) != args[4]) return true;
+                if (!File.Exists(permission) || File.ReadAllText(permission) != Approval(args[4], approvedVersion)) return true;
                 if (!string.Equals(AppUpdates.FileHash(candidate), args[4], StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("The downloaded executable changed before installation.");
+                if (approvedVersion != null) SaveVersionBackup(AppBuild.DataDirectory, target, id);
                 ReplaceAndRestart(target, candidate, directory, id);
             }
             catch (Exception error)
@@ -151,9 +163,29 @@ namespace GameShelf
             return true;
         }
 
-        private static Process OpenTrayCoordinator(string[] args, int parentId, string target)
+        private static bool CanInstallVersion(Version candidate, string approvedVersion)
         {
-            if (args.Length == 5) return null;
+            var build = AppUpdates.ToBuildVersion(candidate);
+            return approvedVersion == null ? build > AppUpdates.BuildVersion :
+                build < AppUpdates.BuildVersion && approvedVersion == build.ToString(3);
+        }
+
+        private static void SaveVersionBackup(string dataDirectory, string target, string id)
+        {
+            string folder = Path.Combine(dataDirectory, "Version backups",
+                DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-" + id);
+            Directory.CreateDirectory(folder);
+            File.Copy(target, Path.Combine(folder, "AppDex.exe"));
+            foreach (string name in new[] { "library.json", "websites.json", "preferences.json", "activity.json", "steam-location.json" })
+            {
+                string path = Path.Combine(dataDirectory, name);
+                if (File.Exists(path)) File.Copy(path, Path.Combine(folder, name));
+            }
+        }
+
+        private static Process OpenTrayCoordinator(string[] args, int argumentCount, int parentId, string target)
+        {
+            if (argumentCount == 5) return null;
             if (!int.TryParse(args[5], out int id) || id == parentId || !long.TryParse(args[6], out long start))
                 throw new InvalidDataException("The updater couldn't verify the AppDex tray process.");
             var process = Process.GetProcessById(id);

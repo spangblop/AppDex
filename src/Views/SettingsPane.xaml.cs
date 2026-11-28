@@ -6,7 +6,6 @@ namespace GameShelf
 {
     public partial class SettingsPane : UserControl
     {
-        private readonly StartupRegistration startup;
         private readonly LibraryPreferences preferences;
         private readonly Action save;
         private readonly AppearanceEditor editor;
@@ -18,9 +17,8 @@ namespace GameShelf
         internal Func<int, int, string> RegisterQuickShortcut;
         internal event Action ShortcutManagerRequested;
 
-        internal SettingsPane(StartupRegistration startup, LibraryPreferences preferences, Action save, Action apply, string dataDirectory)
+        internal SettingsPane(LibraryPreferences preferences, Action save, Action apply, string dataDirectory)
         {
-            this.startup = startup;
             this.preferences = preferences;
             this.save = save;
             refreshing = true;
@@ -34,15 +32,15 @@ namespace GameShelf
                 preferences.QuickLaunchModifiers ?? LaunchHotkeys.DefaultModifiers));
             OnClosePicker.SelectedIndex = preferences.QuitOnWindowClose ? 1 : 0;
             ConfirmQuitToggle.IsChecked = !preferences.SkipQuitConfirmation;
-            StartupModePicker.SelectedIndex = preferences.StartupInTray ? 1 : 0;
+            ReducedTrayMemoryToggle.IsChecked = preferences.ReducedTrayMemory;
             UiSoundsToggle.IsChecked = preferences.UiSoundsEnabled;
             SteamSyncToggle.IsChecked = preferences.SyncSteam;
             EpicSyncToggle.IsChecked = preferences.SyncEpic;
-            if (AppBuild.IsPreview) LibrarySyncCard.Visibility = Visibility.Collapsed;
+            if (AppBuild.IsPreview) LibrarySyncCard.Visibility = TrayMemorySettings.Visibility = Visibility.Collapsed;
             editor = new AppearanceEditor(preferences, apply, save, dataDirectory);
             editor.HighlightChanged += target => HighlightChanged?.Invoke(target);
             AppearanceHost.Content = editor;
-            RefreshStartup();
+            refreshing = false;
             UpdateCloseWarnings();
         }
 
@@ -82,43 +80,6 @@ namespace GameShelf
         internal void ShowAppearanceSample(FrameworkElement source, HighlightPart part, double radius) =>
             editor.ShowAppearanceSample(source, part, radius);
 
-        private void RefreshStartup()
-        {
-            refreshing = true;
-            try
-            {
-                StartupToggle.IsChecked = startup.IsRegistered();
-                StartupToggle.IsEnabled = true;
-                Feedback.Visibility = Visibility.Collapsed;
-            }
-            catch (Exception error)
-            {
-                StartupToggle.IsEnabled = false;
-                ShowError(error);
-            }
-            finally
-            {
-                UpdateStartupModeVisibility();
-                refreshing = false;
-            }
-        }
-
-        private void ChangeStartup(object sender, RoutedEventArgs e)
-        {
-            if (refreshing) return;
-            try
-            {
-                startup.SetRegistered(StartupToggle.IsChecked == true);
-                UpdateStartupModeVisibility();
-                Feedback.Visibility = Visibility.Collapsed;
-            }
-            catch (Exception error)
-            {
-                RefreshStartup();
-                ShowError(error);
-            }
-        }
-
         private void ChangeBehavior(object sender, RoutedEventArgs e)
         {
             if (refreshing) return;
@@ -127,7 +88,6 @@ namespace GameShelf
             preferences.MinimizeAfterLaunch = AfterLaunchPicker.SelectedIndex == 1;
             preferences.QuitOnWindowClose = OnClosePicker.SelectedIndex == 1;
             preferences.SkipQuitConfirmation = ConfirmQuitToggle.IsChecked == false;
-            preferences.StartupInTray = StartupModePicker.SelectedIndex == 1;
             UpdateCloseWarnings();
             save();
         }
@@ -137,6 +97,13 @@ namespace GameShelf
             AfterLaunchWarning.Visibility = preferences.QuitAfterLaunch ? Visibility.Visible : Visibility.Collapsed;
             OnCloseWarning.Visibility = preferences.QuitOnWindowClose ? Visibility.Visible : Visibility.Collapsed;
             ConfirmQuitToggle.Visibility = OnCloseWarning.Visibility;
+        }
+
+        private void ChangeTrayMemory(object sender, RoutedEventArgs e)
+        {
+            if (refreshing) return;
+            preferences.ReducedTrayMemory = ReducedTrayMemoryToggle.IsChecked == true;
+            save();
         }
 
         private void ChangeLibrarySync(object sender, RoutedEventArgs e)
@@ -154,18 +121,6 @@ namespace GameShelf
             preferences.UiSoundsEnabled = UiSoundsToggle.IsChecked == true;
             save();
             UiSoundsChanged?.Invoke();
-        }
-
-        private void UpdateStartupModeVisibility()
-        {
-            StartupModeRow.Visibility = StartupToggle.IsEnabled && StartupToggle.IsChecked == true
-                ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        private void ShowError(Exception error)
-        {
-            Feedback.Text = "Couldn't update startup. " + error.Message;
-            Feedback.Visibility = Visibility.Visible;
         }
 
         private void Cancel(object sender, RoutedEventArgs e) { if (Closed != null) Closed(); }

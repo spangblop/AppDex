@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -30,12 +31,24 @@ namespace GameShelf
         internal AppUpdate NewestInstallable;
     }
 
+    internal sealed class AppRelease
+    {
+        internal string Tag;
+        internal Version Version;
+        internal AppUpdate Package;
+        internal bool IsPreview => Tag.EndsWith("-preview", StringComparison.Ordinal);
+        internal bool HasDeveloperSettings => Version != null && Version >= new Version(0, 6, 4);
+        internal bool HasInAppUpdates => Version != null && Version >= new Version(0, 5, 9) && !IsPreview;
+    }
+
     internal static class AppUpdates
     {
         private const string Repository = "spangblop/AppDex";
         private const int MaximumZip = 25 * 1024 * 1024, MaximumExecutable = 64 * 1024 * 1024;
         private static readonly Regex TagPattern = new Regex(@"\Av(?<version>[0-9]+\.[0-9]+\.[0-9]+)(?<channel>-beta|-preview)?\z");
         internal static Version CurrentVersion => typeof(AppUpdates).Assembly.GetName().Version;
+        internal static Version BuildVersion => ToBuildVersion(CurrentVersion);
+        internal static Version ToBuildVersion(Version version) => new Version(version.Major, version.Minor, version.Build);
         internal static string CurrentLabel => typeof(AppUpdates).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? CurrentVersion.ToString(3);
 
@@ -79,9 +92,27 @@ namespace GameShelf
             }
         }
 
+        internal static async Task<AppRelease[]> GetHistory(CancellationToken token)
+        {
+            var releases = new List<AppRelease>();
+            using (var client = Client())
+            {
+                client.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue { NoCache = true };
+                await ReadReleasePages(client, stream => releases.AddRange(ReadReleases(stream)), token).ConfigureAwait(false);
+            }
+            return releases.OrderByDescending(release => release.Version).ThenBy(release => release.Tag, StringComparer.Ordinal).ToArray();
+        }
+
         private static async Task<AppUpdate> CheckReleasePages(HttpClient client, Version current, CancellationToken token, UpdateCheckReport report = null)
         {
             AppUpdate latest = null;
+            await ReadReleasePages(client, stream => latest = Latest(stream, latest?.Version ?? current, report) ?? latest, token)
+                .ConfigureAwait(false);
+            return latest;
+        }
+
+        private static async Task ReadReleasePages(HttpClient client, Action<Stream> read, CancellationToken token)
+        {
             const string feedUrl = "https://api.github.com/repos/" + Repository + "/releases?per_page=30&page=";
             for (int page = 1; ; page++)
             {
@@ -90,29 +121,47 @@ namespace GameShelf
                 {
                     response.EnsureSuccessStatusCode();
                     using (var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                        latest = Latest(stream, latest?.Version ?? current, report) ?? latest;
+                        read(stream);
 
                     // Use GitHub's pagination signal while keeping requests pinned to the release endpoint.
                     if (!response.Headers.TryGetValues("Link", out var links) ||
                         !links.Any(link => Regex.IsMatch(link, @">\s*;\s*rel=""next""")))
-                        return latest;
+                        return;
                 }
             }
         }
 
         internal static AppUpdate Latest(Stream stream, Version current, UpdateCheckReport report = null)
         {
-            var feed = (Release[])new DataContractJsonSerializer(typeof(Release[])).ReadObject(stream);
-            if (feed == null) throw new InvalidDataException("GitHub returned an empty release feed.");
-            var installed = new Version(current.Major, current.Minor, current.Build);
+            var installed = ToBuildVersion(current);
             AppUpdate latest = null;
-            foreach (var release in feed.Where(item => item != null && !item.Draft))
+            foreach (var release in ReadReleases(stream))
             {
-                var match = TagPattern.Match(release.Tag ?? "");
-                if (!match.Success || !Version.TryParse(match.Groups["version"].Value, out Version version)) continue;
+                var version = release.Version;
+                if (version == null) continue;
                 if (report != null && (report.NewestPublished == null || report.NewestPublished < version))
                     report.NewestPublished = version;
-                if (version <= installed || (latest != null && version <= latest.Version)) continue;
+                if (release.Package != null && version > installed && (latest == null || version > latest.Version))
+                    latest = release.Package;
+            }
+            return latest;
+        }
+
+        private static IEnumerable<AppRelease> ReadReleases(Stream stream)
+        {
+            var feed = (Release[])new DataContractJsonSerializer(typeof(Release[])).ReadObject(stream);
+            if (feed == null) throw new InvalidDataException("GitHub returned an empty release feed.");
+            foreach (var release in feed.Where(item => item != null && !item.Draft))
+            {
+                if (string.IsNullOrWhiteSpace(release.Tag)) continue;
+                var entry = new AppRelease { Tag = release.Tag };
+                var match = TagPattern.Match(release.Tag);
+                if (!match.Success || !Version.TryParse(match.Groups["version"].Value, out Version version))
+                {
+                    yield return entry;
+                    continue;
+                }
+                entry.Version = version;
                 string channel = match.Groups["channel"].Value;
                 string prefix = channel == "-beta" ? "Beta-" : channel == "-preview" ? "Preview-" : "";
                 string name = "AppDex-" + prefix + version.ToString(3) + "-Windows.zip";
@@ -120,10 +169,10 @@ namespace GameShelf
                 var asset = (release.Assets ?? Array.Empty<Asset>()).FirstOrDefault(item => item != null && item.Name == name &&
                     item.Url == url && item.State == "uploaded" && item.Size > 0 && item.Size <= MaximumZip &&
                     (item.Digest ?? "").StartsWith("sha256:", StringComparison.Ordinal) && ValidHash(item.Digest.Substring(7)));
-                if (asset != null) latest = new AppUpdate { Version = version, Download = new Uri(url),
+                if (asset != null) entry.Package = new AppUpdate { Version = version, Download = new Uri(url),
                     ReleaseNotes = release.Body?.Trim(), ZipSize = asset.Size, ZipHash = asset.Digest.Substring(7) };
+                yield return entry;
             }
-            return latest;
         }
 
         private static HttpClient Client()
